@@ -1,0 +1,12 @@
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+# local data: database, token cache, downloaded models
+data/
+*.db
+*.db-*
+msal_cache*
+eval/*.local.json
+appRegistration.json

@@ -1,0 +1,20 @@
+{
+  "description": "Example evaluation set. Copy to eval/queries.local.json (git-ignored), replace with 30-50 real queries you have struggled with in Outlook, and fill in the ids of the emails you were actually looking for. Get ids with: mailsearch search <query> --ids",
+  "queries": [
+    {
+      "query": "kickoff schedule",
+      "expected": ["<CAF+abc123@mail.example.com>"],
+      "note": "The email said 'kick-off agenda' - Outlook search missed it."
+    },
+    {
+      "query": "invoice from:contoso after:2025-01",
+      "expected": ["rowid:123"],
+      "note": "Known-item query with filters; keyword search should win here."
+    },
+    {
+      "query": "vem ansvarar för lokalbokningen till konferensen",
+      "expected": ["AAMkAGI2...graph-id...="],
+      "note": "Swedish natural-language question; tests the multilingual model."
+    }
+  ]
+}
