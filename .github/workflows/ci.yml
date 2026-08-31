@@ -43,7 +43,8 @@ jobs:
 
       - run: dotnet test --configuration Release --no-build --verbosity normal
 
-  # The ONNX model tests download ~900 MB, so they run on a schedule rather than per push.
+  # The ONNX model tests download ~900 MB, so they are opt-in: trigger this workflow
+  # manually ("Run workflow") after changing anything in Embeddings/ or Rerank/.
   model-tests:
     name: model integration tests
     if: github.event_name == 'workflow_dispatch'
