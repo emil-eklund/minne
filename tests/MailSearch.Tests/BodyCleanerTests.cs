@@ -13,7 +13,7 @@ public class BodyCleanerTests
             -----Original Message-----
             From: Anna Svensson
             Sent: Monday
-            To: Emil
+            To: Karin
             Subject: RE: kickoff
 
             Could you send the agenda?
@@ -27,7 +27,7 @@ public class BodyCleanerTests
     [Fact]
     public void Removes_swedish_header_block()
     {
-        var body = "Hej! Här kommer materialet inför kickoffen på fredag, se bilaga.\n\nFrån: Anna Svensson <anna@example.se>\nSkickat: den 3 juni 2024 10:12\nTill: Emil\nÄmne: Kickoff\n\nKan du skicka agendan?";
+        var body = "Hej! Här kommer materialet inför kickoffen på fredag, se bilaga.\n\nFrån: Anna Svensson <anna@example.se>\nSkickat: den 3 juni 2024 10:12\nTill: Karin\nÄmne: Kickoff\n\nKan du skicka agendan?";
         var clean = BodyCleaner.Clean(body);
         Assert.Contains("kickoffen", clean);
         Assert.DoesNotContain("Kan du skicka", clean);
@@ -44,7 +44,7 @@ public class BodyCleanerTests
     [Fact]
     public void Removes_signature_after_sign_off()
     {
-        var body = "The invoice INV-20431 has been paid today.\n\nMed vänliga hälsningar\nEmil Eklund\nAimplan AB\n+46 70 000 00 00";
+        var body = "The invoice INV-20431 has been paid today.\n\nMed vänliga hälsningar\nJohan Berg\nNordvik AB\n+46 70 000 00 00";
         var clean = BodyCleaner.Clean(body);
         Assert.Equal("The invoice INV-20431 has been paid today.", clean);
     }
@@ -75,7 +75,7 @@ public class BodyCleanerTests
     [Fact]
     public void Bare_forward_keeps_forwarded_content()
     {
-        var body = "\n________________________________\nFrom: GitHub <noreply@github.com>\nSent: Monday\nTo: Emil\nSubject: Payment Receipt\n\nYour payment of $4 for the Team plan was received.";
+        var body = "\n________________________________\nFrom: GitHub <noreply@github.com>\nSent: Monday\nTo: Karin\nSubject: Payment Receipt\n\nYour payment of $4 for the Team plan was received.";
         var clean = BodyCleaner.Clean(body);
         Assert.Contains("payment of $4", clean);
         Assert.DoesNotContain("____", clean);

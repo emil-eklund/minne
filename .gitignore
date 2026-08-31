@@ -10,3 +10,6 @@ data/
 msal_cache*
 eval/*.local.json
 app-registration.json
+
+# scratch output from regenerating brand rasters
+assets/generated/

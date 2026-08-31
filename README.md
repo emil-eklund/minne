@@ -1,17 +1,43 @@
-# Local hybrid email search (phase 1)
+<div align="center">
 
-A console tool that indexes your Microsoft 365 mailbox **locally** and lets you search it with
-keyword + semantic (embedding) retrieval. Nothing leaves your machine except the Graph calls
-that fetch your own mail. Phase 1 exists to answer one question with numbers: *does local hybrid
-search find emails that Outlook search misses?*
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+  <img src="assets/logo.svg" alt="Minne" width="300">
+</picture>
+
+**Local hybrid search for your Microsoft 365 mailbox.**<br>
+Finds the email you remember the *meaning* of, not the exact words.
+
+[![ci](https://github.com/emil-eklund/minne/actions/workflows/ci.yml/badge.svg)](https://github.com/emil-eklund/minne/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/emil-eklund/minne?display_name=tag&sort=semver)](https://github.com/emil-eklund/minne/releases)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4.svg)](https://dotnet.microsoft.com/)
+
+</div>
+
+---
+
+You are looking for the agenda someone sent before a kick-off. You search *"kick-off
+schedule"*. The email said *"kickoff agenda"* — one word different, one hyphen missing —
+and Outlook returns nothing.
+
+Minne indexes your Microsoft 365 mailbox **locally** and searches it with keyword *and*
+semantic (embedding) retrieval at the same time. Nothing leaves your machine except the
+Graph calls that fetch your own mail. *Minne* is Swedish for **memory**.
 
 ```
-mailsearch config init          # write config.json, then set graph.clientId
-mailsearch login                # sign in (browser)
-mailsearch sync                 # fetch inbox + sent items, clean, chunk, embed
-mailsearch search kickoff agenda from:anna after:2025-01
-mailsearch eval eval/queries.local.json --verbose
+minne config init          # write config.json, then set graph.clientId
+minne login                # sign in (browser)
+minne sync                 # fetch inbox + sent items, clean, chunk, embed
+minne search kickoff agenda from:anna after:2025-01
+minne eval eval/queries.local.json --verbose
 ```
+
+> **Status: phase 1.** This exists to answer one question with numbers — *does local hybrid
+> search find emails that Outlook search misses?* The `eval` command measures it. If hybrid
+> does not clearly beat both keyword-only search and Outlook on your own queries, the honest
+> answer is that it did not work. Background in [docs/motivation.md](docs/motivation.md);
+> what comes next in [docs/roadmap.md](docs/roadmap.md).
 
 ## How it works
 
@@ -50,7 +76,7 @@ Any other model can be plugged in without code changes:
 | Offline local folder | `embedding.onnx.modelDirectory` pointing at a folder with the model + tokenizer |
 | Ollama / LM Studio / any OpenAI-compatible server | `embedding.provider: "http"`, `embedding.http.endpoint`, `model` |
 
-Changing model after indexing requires `mailsearch embed --reset`; the index refuses to mix models.
+Changing model after indexing requires `minne embed --reset`; the index refuses to mix models.
 
 Alternatives worth trying with the eval harness: `intfloat/multilingual-e5-small` (stronger, needs prefixes),
 `jinaai/jina-embeddings-v2-base-de` (German/English), `KBLab/sentence-bert-swedish-cased` (Swedish only).
@@ -79,13 +105,19 @@ The tool is a *public client*: it signs in as you and reads only your own mailbo
 5. **API permissions** → Add → Microsoft Graph → *Delegated* → `Mail.Read` and `User.Read`. Admin consent is only needed if your tenant requires it for all apps.
 6. Copy the **Application (client) ID**.
 
+This project deliberately ships no shared client id. Registering your own takes three
+minutes and means the app asking for access to your mail is one you control and can
+revoke. (A well-known Microsoft first-party public client such as Graph PowerShell will
+also work for a throwaway local test, but it is Microsoft's registration rather than
+yours, many tenants block it, and it is not something to rely on.)
+
 ### 2. Configure
 
 ```
-mailsearch config init
+minne config init
 ```
 
-Edit the printed `config.json` (default location `%LOCALAPPDATA%\MailSearch\config.json`, override with `--data-dir` or `MAILSEARCH_DATA`):
+Edit the printed `config.json` (default location `%LOCALAPPDATA%\Minne\config.json`, override with `--data-dir` or `MINNE_DATA`):
 
 ```json
 {
@@ -106,28 +138,24 @@ default since many people keep their inbox empty and archive everything.
 ### 3. Run
 
 ```
-mailsearch login
-mailsearch sync            # first run: downloads model, full sync, embeds everything
-mailsearch sync            # later runs: only changes (delta query)
-mailsearch stats
-mailsearch reindex         # after editing BodyCleaner or indexing.* settings: re-clean + re-chunk from
-                           # stored raw bodies and re-embed, without touching Graph (seconds, not minutes)
+minne login
+minne sync            # first run: downloads model, full sync, embeds everything
+minne sync            # later runs: only changes (delta query)
+minne stats
+minne reindex         # after editing BodyCleaner or indexing.* settings: re-clean + re-chunk from
+                      # stored raw bodies and re-embed, without touching Graph (seconds, not minutes)
 ```
-
-**No app registration for a quick test:** set `graph.clientId` to `14d82eec-204b-4c2f-b7e8-296a70dab67e`
-(the Microsoft Graph PowerShell public client, which most tenants already allow and which supports `Mail.Read`).
-Good enough for evaluating on your own mailbox; do not ship with it — register your own multi-tenant app instead.
 
 Embedding runs at roughly 50–150 chunks/s on a laptop CPU; a 20k-message mailbox takes ~10 minutes the first time.
 
 ## Searching
 
 ```
-mailsearch search kickoff agenda
-mailsearch search "kick-off agenda" from:anna after:2024-06 before:2024-07 has:attachment
-mailsearch search budget --mode keyword        # or vector / hybrid (default) / rerank
-mailsearch search budget --top 25 --ids        # show ids for building an eval set
-mailsearch search budget --json
+minne search kickoff agenda
+minne search "kick-off agenda" from:anna after:2024-06 before:2024-07 has:attachment
+minne search budget --mode keyword        # or vector / hybrid (default) / rerank
+minne search budget --top 25 --ids        # show ids for building an eval set
+minne search budget --json
 ```
 
 Result lines are tagged `[kw ]`, `[vec]` or `[k+v]` to show which retriever(s) found them.
@@ -144,16 +172,16 @@ Type to search (debounced) or press Enter; pick Hybrid, Hybrid + rerank, Exact w
 Each result shows which retriever found it (`exact` / `similar` / `both`) with matched terms in bold; the
 preview pane shows the cleaned body, *Open in Outlook* (web link) and *Copy Message-Id* (handy for
 building eval sets). *Sync mailbox* runs the same sync + embed as the CLI, with progress in the
-status bar. It shares `%LOCALAPPDATA%\MailSearch` with the CLI (`--data-dir` / `MAILSEARCH_DATA`
+status bar. It shares `%LOCALAPPDATA%\Minne` with the CLI (`--data-dir` / `MINNE_DATA`
 work the same). Publish like the CLI: `dotnet publish src/MailSearch.App -c Release -r win-x64`
-→ `mailsearch-ui.exe`.
+→ `minne-ui.exe`.
 
 ## Evaluating (the actual point of phase 1)
 
 1. Write down 30–50 searches you genuinely struggled with in Outlook, in your own words.
 2. For each, find the target email (with `search --ids`, or from the Internet-Message-Id in Outlook's message headers) and record it.
-3. `mailsearch eval init eval/queries.local.json`, fill it in (see `eval/queries.example.json`).
-4. `mailsearch eval eval/queries.local.json --verbose`
+3. `minne eval init eval/queries.local.json`, fill it in (see `eval/queries.example.json`).
+4. `minne eval eval/queries.local.json --verbose`
 
 ```
 mode       R@1    R@5   R@10    MRR   avg ms
@@ -169,6 +197,19 @@ both keyword-only and Outlook, the project should stop here.
 Knobs that matter, all in `config.json`: `indexing.chunkSizeChars`, `indexing.cleanBodies`,
 `search.candidateCount`, `search.rrfK`, `search.vectorWeight`, `rerank.depth`, and the embedding and reranker models.
 
+## Installing
+
+Grab a build from [releases](https://github.com/emil-eklund/minne/releases) — single-file
+executables that need no .NET installed:
+
+| Download | Contents |
+|---|---|
+| `minne-<version>-win-x64.zip` | `minne.exe` (CLI) and `minne-ui.exe` (desktop UI) |
+| `minne-<version>-linux-x64.tar.gz` | `minne` (CLI) |
+
+Each archive has a `.sha256` published next to it. The binaries are not code-signed, so
+Windows SmartScreen will warn on first run.
+
 ## Building
 
 Requires the .NET 10 SDK. No other runtime or tool is needed; SQLite, ONNX Runtime and the tokenizer
@@ -181,10 +222,10 @@ dotnet run --project src/MailSearch.Cli -- search hello
 
 # single-file executable (no .NET install needed on the target machine)
 dotnet publish src/MailSearch.Cli -c Release -r win-x64
-#   -> src/MailSearch.Cli/bin/Release/net10.0/win-x64/publish/mailsearch.exe
+#   -> src/MailSearch.Cli/bin/Release/net10.0/win-x64/publish/minne.exe
 ```
 
-Model integration test (downloads the default model): `MAILSEARCH_RUN_MODEL_TESTS=1 dotnet test`.
+Model integration test (downloads the default model): `MINNE_RUN_MODEL_TESTS=1 dotnet test`.
 
 ## Layout
 
@@ -199,10 +240,13 @@ src/MailSearch.Core
   Rerank/        IReranker, OnnxReranker (cross-encoder), RerankerFactory
   Eval/         EvalRunner
   Indexer.cs    sync → clean → chunk → embed orchestration
-src/MailSearch.App   desktop UI (Avalonia; mailsearch-ui.exe)
-src/MailSearch.Cli   command-line front end (mailsearch.exe)
+src/MailSearch.App   desktop UI (Avalonia; minne-ui.exe)
+src/MailSearch.Cli   command-line front end (minne.exe)
 tests/               xunit tests; the search pipeline is tested end-to-end with a fake embedder
 ```
+
+The product is *Minne*; the code is namespaced `MailSearch.*`. That is deliberate — the
+source stays branding-free so the name can change without a repo-wide rename.
 
 ## Privacy and security notes
 
@@ -210,9 +254,21 @@ tests/               xunit tests; the search pipeline is tested end-to-end with 
 * The Graph refresh token is stored encrypted (DPAPI on Windows, keychain/keyring on macOS/Linux; plain file fallback on headless Linux).
 * No telemetry, no network calls other than Graph and the one-time model download from huggingface.co (or none, with `modelDirectory`).
 
+The full threat model, and how to report a vulnerability privately, are in [SECURITY.md](SECURITY.md).
+
 ## Known limitations (phase 1)
 
 * Vectors are scanned brute-force in memory on every search (~0.3 s for 100k chunks). Fine for evaluation; a persistent ANN index or quantization is a phase-2 item.
 * Attachments are not indexed, only the `has:attachment` flag.
 * Body cleaning is heuristic; check `search --json` snippets for quoted-reply leakage and extend `BodyCleaner` patterns.
 * Graph delta queries work per folder; `folders` must be listed explicitly.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Short version: anything that touches ranking
+needs eval numbers rather than opinions, because intuitions about retrieval are usually
+wrong.
+
+## License
+
+[MIT](LICENSE) (c) 2026 Emil Eklund

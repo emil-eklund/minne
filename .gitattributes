@@ -1,0 +1,22 @@
+# Normalise to LF in the repository; Git checks out native line endings on Windows.
+* text=auto eol=lf
+
+*.cs        text diff=csharp
+*.csproj    text
+*.props     text
+*.slnx      text
+*.axaml     text
+*.md        text
+*.json      text
+*.yml       text
+*.svg       text
+
+# Binary assets: never touch these.
+*.ico       binary
+*.png       binary
+*.onnx      binary
+*.db        binary
+
+# Keep generated brand rasters out of diffs and language statistics.
+assets/icon.ico     linguist-generated=true
+assets/icon-256.png linguist-generated=true

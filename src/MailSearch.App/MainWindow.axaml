@@ -3,7 +3,8 @@
         xmlns:app="using:MailSearch.App"
         x:Class="MailSearch.App.MainWindow"
         x:DataType="app:MainViewModel"
-        Title="Mail Search"
+        Title="Minne"
+        Icon="/Assets/icon-256.png"
         Width="1240" Height="800"
         WindowStartupLocation="CenterScreen">
 

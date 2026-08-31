@@ -1,0 +1,40 @@
+name: Search quality
+description: A search that should have found something and did not
+labels: [search-quality]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These are the most useful reports this project can get — but they are also the
+        easiest to accidentally leak private mail through. Describe the *shape* of the
+        problem with invented text rather than pasting the real email.
+
+  - type: textarea
+    id: query
+    attributes:
+      label: The query, and what you were looking for
+      placeholder: >
+        Searched "kickoff schedule"; the target email said "uppstartsmöte agenda" in Swedish
+        and was ranked 30th under hybrid, 2nd under rerank.
+    validations: {required: true}
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Which modes did you try
+      multiple: true
+      options: [keyword, vector, hybrid, rerank]
+    validations: {required: true}
+
+  - type: input
+    id: language
+    attributes:
+      label: Language(s) of the query and the target email
+      placeholder: Swedish query, English email
+
+  - type: textarea
+    id: eval
+    attributes:
+      label: Eval numbers, if you have them
+      description: The table from `minne eval` helps enormously.
+      render: text

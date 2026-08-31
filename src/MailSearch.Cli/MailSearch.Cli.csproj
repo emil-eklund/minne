@@ -2,7 +2,8 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <RootNamespace>MailSearch.Cli</RootNamespace>
-    <AssemblyName>mailsearch</AssemblyName>
+    <AssemblyName>minne</AssemblyName>
+    <ApplicationIcon>..\..\assets\icon.ico</ApplicationIcon>
     <RuntimeIdentifiers>win-x64;linux-x64;osx-arm64</RuntimeIdentifiers>
     <SelfContained>false</SelfContained>
     <!-- publish settings: dotnet publish -c Release -r win-x64 -->

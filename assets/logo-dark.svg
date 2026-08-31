@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 206 64" width="206" height="64" role="img" aria-label="Minne">
+  <title>Minne</title>
+  <defs>
+    <clipPath id="tile">
+      <rect x="2" y="2" width="60" height="60" rx="15"/>
+    </clipPath>
+  </defs>
+
+  <!-- mark -->
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="#12242F"/>
+  <g clip-path="url(#tile)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="12" y="17" width="38" height="27" rx="4.5" stroke="#FBF7F0" stroke-width="3.4"/>
+    <path d="M14.5 20 L31 33.5 L47.5 20" stroke="#E8A33D" stroke-width="3.4"/>
+    <g stroke="#12242F" stroke-width="8">
+      <circle cx="44" cy="43" r="9"/>
+      <path d="M50.6 49.6 L55.5 54.5"/>
+    </g>
+    <g stroke="#E8A33D" stroke-width="3.4">
+      <circle cx="44" cy="43" r="9"/>
+      <path d="M50.6 49.6 L55.5 54.5"/>
+    </g>
+  </g>
+
+  <!-- wordmark: drawn as paths so it renders identically with no font installed -->
+  <g transform="translate(80 6.35)">
+    <g fill="none" stroke="#FBF7F0" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M0 40 L0 27 A8 8 0 0 1 16 27 L16 40 M16 27 A8 8 0 0 1 32 27 L32 40"/>
+      <path d="M41 40 L41 19"/>
+      <path d="M50 40 L50 27 A8 8 0 0 1 66 27 L66 40"/>
+      <path d="M75 40 L75 27 A8 8 0 0 1 91 27 L91 40"/>
+      <path d="M100 30 L121 30 A10.5 10.5 0 1 0 117.92 37.42"/>
+    </g>
+    <circle cx="41" cy="11.5" r="2" fill="#FBF7F0"/>
+  </g>
+</svg>

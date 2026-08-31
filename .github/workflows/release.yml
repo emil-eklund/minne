@@ -1,0 +1,120 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. 0.1.0) — produces a draft release'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: publish ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64,   ui: true }
+          - { os: ubuntu-latest,  rid: linux-x64, ui: false }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            v="${GITHUB_REF_NAME#v}"
+          else
+            v="${{ github.event.inputs.version }}"
+          fi
+          echo "value=$v" >> "$GITHUB_OUTPUT"
+          echo "Building version $v"
+
+      - name: Publish CLI
+        shell: bash
+        run: |
+          dotnet publish src/MailSearch.Cli \
+            -c Release -r ${{ matrix.rid }} \
+            -p:Version=${{ steps.version.outputs.value }} \
+            -o artifacts/${{ matrix.rid }}
+
+      # The desktop UI is Windows-only for now: it is the platform the Outlook audience is on,
+      # and the MSAL token cache uses DPAPI there without extra configuration.
+      - name: Publish desktop UI
+        if: matrix.ui
+        shell: bash
+        run: |
+          dotnet publish src/MailSearch.App \
+            -c Release -r ${{ matrix.rid }} \
+            -p:Version=${{ steps.version.outputs.value }} \
+            -o artifacts/${{ matrix.rid }}
+
+      - name: Stage archive contents
+        shell: bash
+        run: |
+          staging="staging/minne-${{ steps.version.outputs.value }}-${{ matrix.rid }}"
+          mkdir -p "$staging"
+          # Ship only the executables; PDBs and the .NET host config stay out of the archive.
+          find artifacts/${{ matrix.rid }} -maxdepth 1 -type f \
+            \( -name 'minne' -o -name 'minne.exe' -o -name 'minne-ui.exe' \) \
+            -exec cp {} "$staging/" \;
+          cp README.md LICENSE "$staging/"
+          ls -la "$staging"
+
+      - name: Create archive
+        id: archive
+        shell: bash
+        run: |
+          name="minne-${{ steps.version.outputs.value }}-${{ matrix.rid }}"
+          cd staging
+          if [ "${{ matrix.rid }}" = "win-x64" ]; then
+            7z a -tzip "../$name.zip" "$name" >/dev/null
+            asset="$name.zip"
+          else
+            tar -czf "../$name.tar.gz" "$name"
+            asset="$name.tar.gz"
+          fi
+          cd ..
+          sha256sum "$asset" > "$asset.sha256"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.rid }}
+          path: |
+            ${{ steps.archive.outputs.asset }}
+            ${{ steps.archive.outputs.asset }}.sha256
+          if-no-files-found: error
+
+  release:
+    name: create release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - run: ls -la dist
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          # A manual run produces a draft so the notes can be edited before anyone sees it.
+          draft: ${{ github.event_name == 'workflow_dispatch' }}
+          tag_name: ${{ github.event_name == 'push' && github.ref_name || format('v{0}', github.event.inputs.version) }}

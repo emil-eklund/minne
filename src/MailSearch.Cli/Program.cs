@@ -30,7 +30,7 @@ catch (Exception ex) when (ex is InvalidOperationException or HttpRequestExcepti
 static class Cli
 {
     private const string Usage = """
-        usage: mailsearch [--data-dir <dir>] <command> [options]
+        usage: minne [--data-dir <dir>] <command> [options]
 
         commands:
           config init                 write a default config.json (edit graph.clientId afterwards)
@@ -49,7 +49,7 @@ static class Cli
           eval init <file>            write an example evaluation file
           stats                       index statistics
 
-        environment: MAILSEARCH_DATA overrides the default data directory (%LOCALAPPDATA%\MailSearch).
+        environment: MINNE_DATA overrides the default data directory (%LOCALAPPDATA%\Minne).
         """;
 
     public static async Task<int> RunAsync(string[] args, CancellationToken ct)
@@ -93,7 +93,7 @@ static class Cli
                     return Fail($"{paths.ConfigFile} already exists (use --force to overwrite)");
                 new AppConfig().Save(paths.ConfigFile);
                 Console.WriteLine($"Wrote {paths.ConfigFile}");
-                Console.WriteLine("Next: set graph.clientId to your Entra app registration's Application (client) ID, then run 'mailsearch login'.");
+                Console.WriteLine("Next: set graph.clientId to your Entra app registration's Application (client) ID, then run 'minne login'.");
                 return 0;
             case "show":
             case null:

@@ -5,16 +5,16 @@ namespace MailSearch.Tests;
 
 /// <summary>
 /// Downloads the default model (~470 MB) and checks that multilingual paraphrases land close together.
-/// Opt in with MAILSEARCH_RUN_MODEL_TESTS=1; reuses the normal models directory so the download happens once.
+/// Opt in with MINNE_RUN_MODEL_TESTS=1; reuses the normal models directory so the download happens once.
 /// </summary>
 public class OnnxIntegrationTests
 {
-    private static bool Enabled => Environment.GetEnvironmentVariable("MAILSEARCH_RUN_MODEL_TESTS") == "1";
+    private static bool Enabled => Environment.GetEnvironmentVariable("MINNE_RUN_MODEL_TESTS") == "1";
 
     [SkippableFact]
     public async Task Default_model_embeds_multilingual_paraphrases_close_together()
     {
-        Skip.IfNot(Enabled, "set MAILSEARCH_RUN_MODEL_TESTS=1 to run");
+        Skip.IfNot(Enabled, "set MINNE_RUN_MODEL_TESTS=1 to run");
         var paths = new DataPaths();
         using var provider = await OnnxEmbeddingProvider.CreateAsync(new OnnxEmbeddingConfig(), paths, CancellationToken.None);
         Assert.Equal(384, provider.Dimensions);
@@ -37,7 +37,7 @@ public class OnnxIntegrationTests
     [SkippableFact]
     public async Task Default_reranker_scores_relevant_passages_higher()
     {
-        Skip.IfNot(Enabled, "set MAILSEARCH_RUN_MODEL_TESTS=1 to run");
+        Skip.IfNot(Enabled, "set MINNE_RUN_MODEL_TESTS=1 to run");
         var paths = new DataPaths();
         using var reranker = await MailSearch.Rerank.OnnxReranker.CreateAsync(new OnnxRerankConfig(), paths, CancellationToken.None);
         var scores = await reranker.ScoreAsync("How many people live in Berlin?",

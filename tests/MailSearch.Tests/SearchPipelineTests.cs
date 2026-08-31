@@ -30,7 +30,7 @@ public sealed class SearchPipelineTests : IDisposable
         _indexer.Index(new MailMessage
         {
             Id = id, InternetMessageId = $"<{id}@test>", Folder = "inbox", Subject = subject,
-            From = new MailAddress(null, from), To = [new MailAddress("Emil", "emil@example.se")],
+            From = new MailAddress(null, from), To = [new MailAddress("Karin", "karin@example.se")],
             Received = DateTimeOffset.Parse(date + "T10:00:00Z"), HasAttachments = attachments, Body = body,
         });
 

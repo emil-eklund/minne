@@ -26,10 +26,10 @@ public class QueryParserTests
     [Fact]
     public void Filters_are_extracted()
     {
-        var q = QueryParser.Parse("invoice from:contoso to:emil after:2025-01 before:2025-03-15 has:attachment folder:inbox");
+        var q = QueryParser.Parse("invoice from:contoso to:karin after:2025-01 before:2025-03-15 has:attachment folder:inbox");
         Assert.Equal(["invoice"], q.Terms);
         Assert.Equal("contoso", q.From);
-        Assert.Equal("emil", q.To);
+        Assert.Equal("karin", q.To);
         Assert.Equal(new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero), q.After);
         Assert.Equal(new DateTimeOffset(2025, 3, 15, 0, 0, 0, TimeSpan.Zero), q.Before);
         Assert.True(q.HasAttachments);

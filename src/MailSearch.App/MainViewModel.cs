@@ -315,7 +315,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             var embedded = s.EmbeddedChunks == s.Chunks ? "all embedded" : $"{s.EmbeddedChunks:N0} embedded";
             StatsText = $"{s.Messages:N0} messages · {s.Chunks:N0} chunks ({embedded}) · {s.EmbeddingModel ?? "no model yet"} · {s.DatabaseBytes / 1048576.0:0.0} MB";
             if (s.Messages == 0)
-                Status = "The index is empty — press 'Sync mailbox' to fetch your mail (or run 'mailsearch sync').";
+                Status = "The index is empty — press 'Sync mailbox' to fetch your mail (or run 'minne sync').";
         }
         catch (Exception ex)
         {

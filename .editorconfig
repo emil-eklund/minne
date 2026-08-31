@@ -1,0 +1,35 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml,md,axaml,xml,csproj,props,slnx}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+# Allman braces, file-scoped namespaces, var where the type is obvious — matching existing code.
+csharp_new_line_before_open_brace = all
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_expression_bodied_properties = true:suggestion
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+dotnet_sort_system_directives_first = true
+csharp_prefer_braces = when_multiline:suggestion
+
+# Nullable reference types are on; treat their diagnostics as errors rather than noise.
+dotnet_diagnostic.CS8600.severity = error
+dotnet_diagnostic.CS8602.severity = error
+dotnet_diagnostic.CS8603.severity = error
+dotnet_diagnostic.CS8618.severity = error
+
+[tests/**/*.cs]
+# Test fixtures deliberately use fake data and unused locals.
+dotnet_diagnostic.CS8618.severity = none

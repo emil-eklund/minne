@@ -53,7 +53,7 @@ public sealed class RerankPipelineTests : IDisposable
         _indexer.Index(new MailMessage
         {
             Id = id, InternetMessageId = $"<{id}@test>", Folder = "inbox", Subject = subject,
-            From = new MailAddress(null, from), To = [new MailAddress("Emil", "emil@example.se")],
+            From = new MailAddress(null, from), To = [new MailAddress("Karin", "karin@example.se")],
             Received = DateTimeOffset.Parse("2025-05-01T10:00:00Z"), Body = body,
         });
 

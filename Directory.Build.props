@@ -6,4 +6,17 @@
     <LangVersion>latest</LangVersion>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
+
+  <!-- Product identity. The assemblies stay namespaced MailSearch.* on purpose: the code is
+       branding-free so the product name can move without a source-wide rename. -->
+  <PropertyGroup>
+    <Product>Minne</Product>
+    <Authors>Emil Eklund</Authors>
+    <Copyright>Copyright (c) 2026 Emil Eklund</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/emil-eklund/minne</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <!-- overridden by the release workflow from the git tag -->
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+  </PropertyGroup>
 </Project>
