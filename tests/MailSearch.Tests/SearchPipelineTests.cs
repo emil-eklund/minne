@@ -131,6 +131,27 @@ public sealed class SearchPipelineTests : IDisposable
     }
 
     [Fact]
+    public async Task Search_gives_the_same_results_after_unload()
+    {
+        await _indexer.EmbedPendingAsync(new FakeEmbeddingProvider(), null, CancellationToken.None);
+        var before = await _searcher.SearchAsync("kickoff agenda", SearchMode.Hybrid, 10, CancellationToken.None);
+        _searcher.Unload();
+        var after = await _searcher.SearchAsync("kickoff agenda", SearchMode.Hybrid, 10, CancellationToken.None);
+        Assert.Equal(before.Select(h => h.Message.Id), after.Select(h => h.Message.Id));
+    }
+
+    [Fact]
+    public void Reindex_streams_pages_while_rewriting_rows()
+    {
+        // more messages than one EnumerateRaw page (256), rewritten in place while iterating
+        for (var i = 0; i < 300; i++)
+            Seed($"bulk{i}", $"Bulk subject {i}", "bulk@example.se", "2025-05-01", $"Bulk body {i} with some words to chunk.");
+        var count = _indexer.ReindexAll();
+        Assert.Equal(304, count);
+        Assert.Equal(304, _store.GetStats().Messages);
+    }
+
+    [Fact]
     public async Task Eval_reports_recall_per_mode()
     {
         await _indexer.EmbedPendingAsync(new FakeEmbeddingProvider(), null, CancellationToken.None);

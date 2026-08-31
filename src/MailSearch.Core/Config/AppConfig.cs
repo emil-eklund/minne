@@ -117,6 +117,8 @@ public sealed class SearchConfig
     public double VectorWeight { get; set; } = 1.0;
     /// <summary>Multiplier applied to the vector weight when the query contains a QUOTED identifier-like token ("INV-20431", an address): quoting signals the user wants an exact match. Unquoted terms keep the normal balance.</summary>
     public double IdentifierVectorWeightFactor { get; set; } = 0.4;
+    /// <summary>Seconds without a search before the desktop UI unloads the models and the vector index; the next search reloads them (a second or two slower). 0 = keep everything in memory.</summary>
+    public int IdleUnloadSeconds { get; set; } = 120;
 }
 
 /// <summary>Cross-encoder re-ranking of the fused candidates (search mode "rerank").</summary>

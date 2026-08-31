@@ -197,6 +197,8 @@ contributes; the comparison with Outlook shows whether the index is earning its 
 
 Knobs that matter, all in `config.json`: `indexing.chunkSizeChars`, `indexing.cleanBodies`,
 `search.candidateCount`, `search.rrfK`, `search.vectorWeight`, `rerank.depth`, and the embedding and reranker models.
+The desktop UI unloads the models and the vector index after `search.idleUnloadSeconds` (default 120)
+without a search, dropping idle memory to a few tens of MB; the next search reloads them in about a second. Set `0` to keep everything loaded.
 
 ## Installing
 

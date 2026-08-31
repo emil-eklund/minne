@@ -125,12 +125,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _debounceCts;
     private CancellationTokenSource? _searchCts;
     private CancellationTokenSource? _syncCts;
+    private readonly DispatcherTimer? _idleTimer;
+    private DateTime _lastUseUtc = DateTime.UtcNow;
+    private bool _resourcesLoaded;
 
     public MainViewModel(string? dataDir = null)
     {
         _paths = new DataPaths(dataDir);
         _config = AppConfig.Load(_paths.ConfigFile);
         _store = new SearchStore(_paths.DatabaseFile);
+        if (_config.Search.IdleUnloadSeconds > 0)
+        {
+            _idleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+            _idleTimer.Tick += (_, _) => _ = UnloadIfIdleAsync();
+            _idleTimer.Start();
+        }
         _ = RefreshStatsAsync();
     }
 
@@ -232,6 +241,35 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { Status = $"error: {ex.Message}"; }
+        finally
+        {
+            _lastUseUtc = DateTime.UtcNow;
+            _resourcesLoaded = true;
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// After <see cref="SearchConfig.IdleUnloadSeconds"/> without a search or sync, drops the native
+    /// inference sessions and the vector index and trims the working set. The next search reloads
+    /// them (a second or two). This is what keeps the app's idle footprint in the tens of MB.
+    /// </summary>
+    private async Task UnloadIfIdleAsync()
+    {
+        if (!_resourcesLoaded || IsSyncing) return;
+        if ((DateTime.UtcNow - _lastUseUtc).TotalSeconds < _config.Search.IdleUnloadSeconds) return;
+        if (!await _gate.WaitAsync(0)) return; // busy right now; the next tick will retry
+        try
+        {
+            _resourcesLoaded = false;
+            await Task.Run(() =>
+            {
+                _searcher?.Unload();
+                (_provider as IUnloadable)?.Unload(); // also covers a provider loaded by sync after _searcher was reset
+                (_reranker as IUnloadable)?.Unload();
+                MemoryReclaimer.Reclaim();
+            });
+        }
         finally { _gate.Release(); }
     }
 
@@ -280,6 +318,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         catch (Exception ex) { Status = $"sync error: {ex.Message}"; }
         finally
         {
+            _lastUseUtc = DateTime.UtcNow;
+            _resourcesLoaded = true;
             _gate.Release();
             IsSyncing = false;
         }
@@ -327,6 +367,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _idleTimer?.Stop();
         _provider?.Dispose();
         _reranker?.Dispose();
         _store.Dispose();

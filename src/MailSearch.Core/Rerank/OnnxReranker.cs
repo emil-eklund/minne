@@ -9,9 +9,12 @@ namespace MailSearch.Rerank;
 /// Cross-encoder re-scorer: one forward pass per (query, passage) pair, returning a relevance logit.
 /// Works with BERT-style pairs ([CLS] q [SEP] p [SEP]) and RoBERTa/XLM-R-style pairs (&lt;s&gt; q &lt;/s&gt;&lt;/s&gt; p &lt;/s&gt;).
 /// </summary>
-public sealed class OnnxReranker : IReranker
+public sealed class OnnxReranker : IReranker, IUnloadable
 {
-    private readonly InferenceSession _session;
+    private readonly string _modelPath;
+    private readonly SessionOptions _options;
+    private readonly object _sessionLock = new();
+    private InferenceSession? _session;
     private readonly ITokenizer _tokenizer;
     private readonly OnnxRerankConfig _config;
     private readonly Dictionary<string, TensorElementType> _inputs;
@@ -21,19 +24,35 @@ public sealed class OnnxReranker : IReranker
 
     public OnnxReranker(string modelPath, ITokenizer tokenizer, OnnxRerankConfig config, string modelId, bool doubleSeparator)
     {
+        _modelPath = modelPath;
         _tokenizer = tokenizer;
         _config = config;
         ModelId = modelId;
         _doubleSeparator = doubleSeparator;
 
-        var options = new SessionOptions
+        _options = new SessionOptions
         {
             GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
             IntraOpNumThreads = Math.Max(1, Environment.ProcessorCount - 1),
             LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR,
         };
-        _session = new InferenceSession(modelPath, options);
-        _inputs = _session.InputMetadata.ToDictionary(kv => kv.Key, kv => kv.Value.ElementDataType);
+        _inputs = Session.InputMetadata.ToDictionary(kv => kv.Key, kv => kv.Value.ElementDataType);
+    }
+
+    /// <summary>The live inference session, recreated on demand after <see cref="Unload"/>.</summary>
+    private InferenceSession Session
+    {
+        get { lock (_sessionLock) return _session ??= new InferenceSession(_modelPath, _options); }
+    }
+
+    /// <summary>Frees the native session while idle; the next score recreates it from disk. The tokenizer stays loaded (see <see cref="Embeddings.OnnxEmbeddingProvider.Unload"/>).</summary>
+    public void Unload()
+    {
+        lock (_sessionLock)
+        {
+            _session?.Dispose();
+            _session = null;
+        }
     }
 
     public static async Task<OnnxReranker> CreateAsync(OnnxRerankConfig config, DataPaths paths, CancellationToken ct)
@@ -60,7 +79,7 @@ public sealed class OnnxReranker : IReranker
                 ct.ThrowIfCancellationRequested();
                 var pairs = passages.Skip(offset).Take(_config.BatchSize)
                     .Select(p => BuildPair(queryTokens, _tokenizer.Encode(p))).ToArray();
-                var batchScores = Score(pairs);
+                var batchScores = Score(pairs, lastInSequence: offset + _config.BatchSize >= passages.Count);
                 Array.Copy(batchScores, 0, scores, offset, batchScores.Length);
             }
             return scores;
@@ -92,7 +111,7 @@ public sealed class OnnxReranker : IReranker
         return (ids, query.Length + extra);
     }
 
-    private float[] Score((int[] Ids, int QueryLength)[] pairs)
+    private float[] Score((int[] Ids, int QueryLength)[] pairs, bool lastInSequence)
     {
         var n = pairs.Length;
         var maxLen = pairs.Max(p => p.Ids.Length);
@@ -126,8 +145,18 @@ public sealed class OnnxReranker : IReranker
                 : NamedOnnxValue.CreateFromTensor(name, new DenseTensor<long>(source, shape)));
         }
 
-        using var results = _session.Run(inputs);
-        var flat = results.First().AsTensor<float>().ToArray();
+        float[] flat;
+        // See OnnxEmbeddingProvider.EmbedBatch: shrink the arena on the final run of a sequence.
+        using (var runOptions = new RunOptions())
+        {
+            if (lastInSequence) runOptions.AddRunConfigEntry("memory.enable_memory_arena_shrinkage", "cpu:0");
+            lock (_sessionLock)
+            {
+                var session = Session;
+                using var results = session.Run(inputs, session.OutputMetadata.Keys.ToList(), runOptions);
+                flat = results.First().AsTensor<float>().ToArray();
+            }
+        }
         var perItem = Math.Max(1, flat.Length / n);
         var scores = new float[n];
         for (var i = 0; i < n; i++)
@@ -147,7 +176,8 @@ public sealed class OnnxReranker : IReranker
 
     public void Dispose()
     {
-        _session.Dispose();
+        Unload();
+        _options.Dispose();
         _tokenizer.Dispose();
     }
 }

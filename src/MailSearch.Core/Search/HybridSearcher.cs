@@ -43,6 +43,18 @@ public sealed class HybridSearcher
         _rerankDepth = rerankDepth;
     }
 
+    /// <summary>
+    /// Releases the in-memory vector index and the native inference sessions while idle; everything
+    /// reloads lazily on the next search. The index must be dropped explicitly because the searcher
+    /// itself stays reachable from the UI for as long as the window is open.
+    /// </summary>
+    public void Unload()
+    {
+        _index = null;
+        (_provider as IUnloadable)?.Unload();
+        (_reranker as IUnloadable)?.Unload();
+    }
+
     public async Task<List<SearchHit>> SearchAsync(string rawQuery, SearchMode mode, int top, CancellationToken ct)
     {
         var query = QueryParser.Parse(rawQuery);

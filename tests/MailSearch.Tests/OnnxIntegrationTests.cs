@@ -49,4 +49,16 @@ public class OnnxIntegrationTests
         Assert.True(scores[0] > scores[1], $"relevant {scores[0]} vs unrelated {scores[1]}");
         Assert.True(scores[2] > scores[1], $"swedish {scores[2]} vs unrelated {scores[1]}");
     }
+
+    [SkippableFact]
+    public async Task Provider_embeds_identically_after_unload()
+    {
+        Skip.IfNot(Enabled, "set MINNE_RUN_MODEL_TESTS=1 to run");
+        var paths = new DataPaths();
+        using var provider = await OnnxEmbeddingProvider.CreateAsync(new OnnxEmbeddingConfig(), paths, CancellationToken.None);
+        var before = await provider.EmbedQueryAsync("kick-off agenda for the project", CancellationToken.None);
+        provider.Unload();
+        var after = await provider.EmbedQueryAsync("kick-off agenda for the project", CancellationToken.None);
+        Assert.Equal(before, after);
+    }
 }

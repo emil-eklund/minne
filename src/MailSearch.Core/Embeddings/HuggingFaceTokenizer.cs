@@ -44,5 +44,5 @@ public sealed class HuggingFaceTokenizer : ITokenizer
         return 0;
     }
 
-    public void Dispose() { }
+    public void Dispose() => _inner.Dispose();
 }

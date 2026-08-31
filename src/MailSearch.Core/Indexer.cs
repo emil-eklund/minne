@@ -62,7 +62,7 @@ public sealed class Indexer
     public int ReindexAll(Action<int>? progress = null)
     {
         var count = 0;
-        foreach (var (rowId, message) in _store.EnumerateRaw().ToList())
+        foreach (var (rowId, message) in _store.EnumerateRaw())
         {
             var (body, chunks) = Prepare(message);
             _store.ReplaceContent(rowId, body, chunks);

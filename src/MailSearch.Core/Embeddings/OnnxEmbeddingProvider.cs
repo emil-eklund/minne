@@ -6,9 +6,12 @@ using Microsoft.ML.OnnxRuntime.Tensors;
 namespace MailSearch.Embeddings;
 
 /// <summary>Runs a sentence-transformer style ONNX model on the CPU. Works with any BERT/XLM-R-like encoder export.</summary>
-public sealed class OnnxEmbeddingProvider : IEmbeddingProvider
+public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IUnloadable
 {
-    private readonly InferenceSession _session;
+    private readonly string _modelPath;
+    private readonly SessionOptions _options;
+    private readonly object _sessionLock = new();
+    private InferenceSession? _session;
     private readonly ITokenizer _tokenizer;
     private readonly OnnxEmbeddingConfig _config;
     private readonly string _outputName;
@@ -20,26 +23,48 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider
 
     public OnnxEmbeddingProvider(string modelPath, ITokenizer tokenizer, OnnxEmbeddingConfig config, string modelId)
     {
+        _modelPath = modelPath;
         _tokenizer = tokenizer;
         _config = config;
         ModelId = modelId;
 
-        var options = new SessionOptions
+        _options = new SessionOptions
         {
             GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
             IntraOpNumThreads = Math.Max(1, Environment.ProcessorCount - 1),
             LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR,
         };
-        _session = new InferenceSession(modelPath, options);
+        var session = Session;
 
-        _inputs = _session.InputMetadata.ToDictionary(kv => kv.Key, kv => kv.Value.ElementDataType);
+        _inputs = session.InputMetadata.ToDictionary(kv => kv.Key, kv => kv.Value.ElementDataType);
         // Prefer a token-level output (we pool ourselves); fall back to the first output.
-        _outputName = _session.OutputMetadata.Keys.FirstOrDefault(n => n is "last_hidden_state" or "token_embeddings")
-                      ?? _session.OutputMetadata.Keys.First();
+        _outputName = session.OutputMetadata.Keys.FirstOrDefault(n => n is "last_hidden_state" or "token_embeddings")
+                      ?? session.OutputMetadata.Keys.First();
 
-        var dims = _session.OutputMetadata[_outputName].Dimensions;
+        var dims = session.OutputMetadata[_outputName].Dimensions;
         Dimensions = dims.Length > 0 && dims[^1] > 0 ? dims[^1] : 0;
         if (Dimensions == 0) Dimensions = EmbedQueryAsync("dimension probe", CancellationToken.None).GetAwaiter().GetResult().Length;
+    }
+
+    /// <summary>The live inference session, recreated on demand after <see cref="Unload"/>.</summary>
+    private InferenceSession Session
+    {
+        get { lock (_sessionLock) return _session ??= new InferenceSession(_modelPath, _options); }
+    }
+
+    /// <summary>
+    /// Frees the native session (weights + arena) while idle; the next embed recreates it from disk.
+    /// The tokenizer stays loaded on purpose: its native allocator never returns memory to the OS,
+    /// so cycling it only grows the process, while its idle pages cost nothing once the working set
+    /// is trimmed (see <see cref="MemoryReclaimer"/>).
+    /// </summary>
+    public void Unload()
+    {
+        lock (_sessionLock)
+        {
+            _session?.Dispose();
+            _session = null;
+        }
     }
 
     public static async Task<OnnxEmbeddingProvider> CreateAsync(OnnxEmbeddingConfig config, DataPaths paths, CancellationToken ct)
@@ -63,13 +88,13 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider
         {
             ct.ThrowIfCancellationRequested();
             var batch = texts.Skip(offset).Take(_config.BatchSize).ToList();
-            var vectors = EmbedBatch(batch);
+            var vectors = EmbedBatch(batch, lastInSequence: offset + _config.BatchSize >= texts.Count);
             for (var i = 0; i < vectors.Length; i++) result[offset + i] = vectors[i];
         }
         return result;
     }
 
-    private float[][] EmbedBatch(IReadOnlyList<string> texts)
+    private float[][] EmbedBatch(IReadOnlyList<string> texts, bool lastInSequence)
     {
         var encoded = texts.Select(t => Truncate(_tokenizer.Encode(t), _config.MaxTokens)).ToArray();
         var maxLen = Math.Max(1, encoded.Max(e => e.Length));
@@ -102,11 +127,22 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider
                 : NamedOnnxValue.CreateFromTensor(name, new DenseTensor<long>(source, shape)));
         }
 
-        using var results = _session.Run(inputs, [_outputName]);
-        var output = results.First().AsTensor<float>();
-        var outDims = output.Dimensions.ToArray();
+        float[] flat;
+        int[] outDims;
+        // The arena otherwise keeps the widest workspace it ever allocated; shrinking on the final
+        // run of a sequence returns it to the OS at no cost to the earlier batches.
+        using (var runOptions = new RunOptions())
+        {
+            if (lastInSequence) runOptions.AddRunConfigEntry("memory.enable_memory_arena_shrinkage", "cpu:0");
+            lock (_sessionLock)
+            {
+                using var results = Session.Run(inputs, [_outputName], runOptions);
+                var output = results.First().AsTensor<float>();
+                outDims = output.Dimensions.ToArray();
+                flat = output.ToArray();
+            }
+        }
         var hidden = outDims[^1];
-        var flat = output.ToArray();
         var vectors = new float[n][];
 
         for (var i = 0; i < n; i++)
@@ -154,7 +190,8 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider
 
     public void Dispose()
     {
-        _session.Dispose();
+        Unload();
+        _options.Dispose();
         _tokenizer.Dispose();
     }
 }

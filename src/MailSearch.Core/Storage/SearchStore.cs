@@ -150,32 +150,49 @@ public sealed class SearchStore : IDisposable
         tx.Commit();
     }
 
-    /// <summary>Everything needed to re-run cleaning and chunking for stored messages (only rows that kept a raw body).</summary>
+    /// <summary>
+    /// Everything needed to re-run cleaning and chunking for stored messages (only rows that kept a raw body).
+    /// Reads one page of rows at a time, so callers may rewrite rows between items (no reader stays open)
+    /// and the whole mailbox is never materialised at once.
+    /// </summary>
     public IEnumerable<(long RowId, MailMessage Message)> EnumerateRaw()
     {
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = """
-            SELECT rowid, id, internet_message_id, conversation_id, folder, subject, sender_name, sender_address,
-                   received_utc, has_attachments, web_link, body_raw
-            FROM messages WHERE body_raw IS NOT NULL ORDER BY rowid
-            """;
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
+        const int pageSize = 256;
+        var after = 0L;
+        while (true)
         {
-            var message = new MailMessage
+            var page = new List<(long RowId, MailMessage Message)>(pageSize);
+            using (var cmd = _db.CreateCommand())
             {
-                Id = reader.GetString(1),
-                InternetMessageId = reader.IsDBNull(2) ? null : reader.GetString(2),
-                ConversationId = reader.IsDBNull(3) ? null : reader.GetString(3),
-                Folder = reader.GetString(4),
-                Subject = reader.GetString(5),
-                From = reader.IsDBNull(7) ? null : new MailAddress(reader.IsDBNull(6) ? null : reader.GetString(6), reader.GetString(7)),
-                Received = DateTimeOffset.Parse(reader.GetString(8), null, System.Globalization.DateTimeStyles.RoundtripKind),
-                HasAttachments = reader.GetInt64(9) == 1,
-                WebLink = reader.IsDBNull(10) ? null : reader.GetString(10),
-                Body = reader.GetString(11),
-            };
-            yield return (reader.GetInt64(0), message);
+                cmd.CommandText = """
+                    SELECT rowid, id, internet_message_id, conversation_id, folder, subject, sender_name, sender_address,
+                           received_utc, has_attachments, web_link, body_raw
+                    FROM messages WHERE body_raw IS NOT NULL AND rowid > $after ORDER BY rowid LIMIT $limit
+                    """;
+                cmd.Parameters.AddWithValue("$after", after);
+                cmd.Parameters.AddWithValue("$limit", pageSize);
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    var message = new MailMessage
+                    {
+                        Id = reader.GetString(1),
+                        InternetMessageId = reader.IsDBNull(2) ? null : reader.GetString(2),
+                        ConversationId = reader.IsDBNull(3) ? null : reader.GetString(3),
+                        Folder = reader.GetString(4),
+                        Subject = reader.GetString(5),
+                        From = reader.IsDBNull(7) ? null : new MailAddress(reader.IsDBNull(6) ? null : reader.GetString(6), reader.GetString(7)),
+                        Received = DateTimeOffset.Parse(reader.GetString(8), null, System.Globalization.DateTimeStyles.RoundtripKind),
+                        HasAttachments = reader.GetInt64(9) == 1,
+                        WebLink = reader.IsDBNull(10) ? null : reader.GetString(10),
+                        Body = reader.GetString(11),
+                    };
+                    page.Add((reader.GetInt64(0), message));
+                }
+            }
+            foreach (var item in page) yield return item;
+            if (page.Count < pageSize) yield break;
+            after = page[^1].RowId;
         }
     }
 
