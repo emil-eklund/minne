@@ -119,6 +119,22 @@ mailsearch search budget --json
 
 Result lines are tagged `[kw ]`, `[vec]` or `[k+v]` to show which retriever(s) found them.
 
+## Desktop UI
+
+A slim desktop front end (Avalonia — native rendering, no web view) over the same index and config:
+
+```
+dotnet run --project src/MailSearch.App
+```
+
+Type to search (debounced) or press Enter; pick hybrid/keyword/vector and top-N in the toolbar.
+Each result shows which retriever found it (`kw` / `vec` / `k+v`) with matched terms in bold; the
+preview pane shows the cleaned body, *Open in Outlook* (web link) and *Copy Message-Id* (handy for
+building eval sets). *Sync mailbox* runs the same sync + embed as the CLI, with progress in the
+status bar. It shares `%LOCALAPPDATA%\MailSearch` with the CLI (`--data-dir` / `MAILSEARCH_DATA`
+work the same). Publish like the CLI: `dotnet publish src/MailSearch.App -c Release -r win-x64`
+→ `mailsearch-ui.exe`.
+
 ## Evaluating (the actual point of phase 1)
 
 1. Write down 30–50 searches you genuinely struggled with in Outlook, in your own words.
@@ -168,6 +184,7 @@ src/MailSearch.Core
   Search/       QueryParser, HybridSearcher, RankFusion
   Eval/         EvalRunner
   Indexer.cs    sync → clean → chunk → embed orchestration
+src/MailSearch.App   desktop UI (Avalonia; mailsearch-ui.exe)
 src/MailSearch.Cli   command-line front end (mailsearch.exe)
 tests/               xunit tests; the search pipeline is tested end-to-end with a fake embedder
 ```

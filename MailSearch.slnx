@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/MailSearch.App/MailSearch.App.csproj" />
     <Project Path="src/MailSearch.Cli/MailSearch.Cli.csproj" />
     <Project Path="src/MailSearch.Core/MailSearch.Core.csproj" />
   </Folder>

@@ -1,0 +1,96 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="using:MailSearch.App"
+        x:Class="MailSearch.App.MainWindow"
+        x:DataType="app:MainViewModel"
+        Title="Mail Search"
+        Width="1240" Height="800"
+        WindowStartupLocation="CenterScreen">
+
+  <DockPanel>
+
+    <!-- search bar -->
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="12,12,12,8">
+      <TextBox Name="QueryBox" Grid.Column="0"
+               Watermark='e.g.  kickoff agenda from:anna after:2025-01 has:attachment "exact phrase"'
+               Text="{Binding QueryText}" KeyDown="OnQueryKeyDown"/>
+      <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="110" VerticalAlignment="Center"
+                ItemsSource="{Binding Modes}" SelectedItem="{Binding SelectedMode}"/>
+      <ComboBox Grid.Column="2" Margin="8,0,0,0" MinWidth="80" VerticalAlignment="Center"
+                ItemsSource="{Binding TopOptions}" SelectedItem="{Binding SelectedTop}"/>
+    </Grid>
+
+    <!-- status bar -->
+    <Border DockPanel.Dock="Bottom" Padding="12,8" BorderThickness="0,1,0,0" BorderBrush="#33808080">
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Content="Cancel" Click="OnCancelSyncClick"
+                IsVisible="{Binding IsSyncing}" Margin="8,0,0,0"/>
+        <Button DockPanel.Dock="Right" Content="Sync mailbox" Click="OnSyncClick"
+                IsEnabled="{Binding !IsSyncing}" Margin="12,0,0,0"/>
+        <TextBlock DockPanel.Dock="Right" Text="{Binding StatsText}" Opacity="0.55"
+                   FontSize="12" VerticalAlignment="Center"/>
+        <TextBlock Text="{Binding Status}" VerticalAlignment="Center" Margin="0,0,12,0"
+                   TextTrimming="CharacterEllipsis"/>
+      </DockPanel>
+    </Border>
+
+    <!-- results | preview -->
+    <Grid ColumnDefinitions="5*,1,4*">
+
+      <ListBox Grid.Column="0" Margin="4,0,0,4"
+               ItemsSource="{Binding Results}" SelectedItem="{Binding Selected}"
+               DoubleTapped="OnResultDoubleTapped">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="app:ResultItem">
+            <Grid RowDefinitions="Auto,Auto" Margin="0,3">
+              <DockPanel Grid.Row="0">
+                <Border DockPanel.Dock="Left" Background="{Binding ViaBrush}" CornerRadius="3"
+                        Padding="5,1" Margin="0,0,8,0" MinWidth="34" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Via}" FontSize="10" Foreground="White"
+                             HorizontalAlignment="Center"/>
+                </Border>
+                <TextBlock DockPanel.Dock="Left" Text="{Binding Date}" Opacity="0.6"
+                           FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBlock DockPanel.Dock="Left" Text="{Binding From}" FontWeight="SemiBold"
+                           MaxWidth="170" TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Attachment}" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Subject}" TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center"/>
+              </DockPanel>
+              <app:HighlightTextBlock Grid.Row="1" Runs="{Binding SnippetRuns}" Opacity="0.65"
+                                      FontSize="12" TextWrapping="Wrap" MaxLines="2"
+                                      TextTrimming="CharacterEllipsis" Margin="42,3,0,0"/>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="Transparent"/>
+
+      <!-- preview pane -->
+      <Grid Grid.Column="2" RowDefinitions="Auto,*" Margin="12,0,12,4"
+            IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <StackPanel Grid.Row="0" Spacing="3">
+          <TextBlock Text="{Binding Selected.Subject}" FontSize="17" FontWeight="SemiBold"
+                     TextWrapping="Wrap"/>
+          <TextBlock Text="{Binding Selected.DetailFrom}" Opacity="0.75" FontSize="13"/>
+          <TextBlock Text="{Binding Selected.DetailTo}" Opacity="0.75" FontSize="13"
+                     TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis"/>
+          <TextBlock Text="{Binding Selected.DetailMeta}" Opacity="0.55" FontSize="12"/>
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,8">
+            <Button Content="Open in Outlook" Click="OnOpenClick"
+                    IsEnabled="{Binding Selected.HasWebLink, FallbackValue=False}"/>
+            <Button Content="Copy Message-Id" Click="OnCopyIdClick"/>
+          </StackPanel>
+        </StackPanel>
+        <Border Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="#33808080" Padding="0,8,0,0">
+          <ScrollViewer>
+            <SelectableTextBlock Text="{Binding Selected.Body}" TextWrapping="Wrap" FontSize="13"/>
+          </ScrollViewer>
+        </Border>
+      </Grid>
+    </Grid>
+
+  </DockPanel>
+</Window>
