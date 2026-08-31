@@ -13,7 +13,7 @@
     <!-- search bar -->
     <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="12,12,12,8">
       <TextBox Name="QueryBox" Grid.Column="0"
-               Watermark='e.g.  kickoff agenda from:anna after:2025-01 has:attachment "exact phrase"'
+               PlaceholderText='e.g.  kickoff agenda from:anna after:2025-01 has:attachment "exact phrase"'
                Text="{Binding QueryText}" KeyDown="OnQueryKeyDown"/>
       <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="150" VerticalAlignment="Center"
                 ItemsSource="{Binding Modes}" SelectedItem="{Binding SelectedMode}"/>
