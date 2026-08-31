@@ -11,9 +11,7 @@ public sealed class DataPaths
 
     public DataPaths(string? root = null)
     {
-        Root = root ?? Environment.GetEnvironmentVariable("MINNE_DATA")
-               ?? Environment.GetEnvironmentVariable("MAILSEARCH_DATA")
-               ?? DefaultRoot();
+        Root = root ?? Environment.GetEnvironmentVariable("MINNE_DATA") ?? DefaultRoot();
         Directory.CreateDirectory(Root);
     }
 

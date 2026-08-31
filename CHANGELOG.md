@@ -7,7 +7,8 @@ versions follow [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.1.0] — first public release
 
-Phase 1: prove that local hybrid search beats Outlook search on a real mailbox.
+Local hybrid search for a Microsoft 365 mailbox — and the eval harness to check,
+on your own queries, that it beats Outlook search.
 
 ### Added
 - Incremental mailbox sync over Microsoft Graph delta queries, with quoted-reply and

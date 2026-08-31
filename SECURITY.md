@@ -17,6 +17,7 @@ Minne is a local desktop tool, but it handles material worth being careful with:
 | Embeddings of your mail | `mail.db` | Plain BLOBs |
 | Graph refresh token | `msal_cache.bin` in the data directory | DPAPI (Windows), keychain/keyring (macOS/Linux), plain file fallback on headless Linux |
 | Entra client id | `config.json` | Not a secret — it is a public client identifier |
+| Embedding endpoint API key (optional, `embedding.http.apiKey`) | `config.json` | Plain text; redacted in `config show` output |
 
 The database is not encrypted. Anyone with read access to your user profile can
 read your indexed mail. Keep the data directory out of synced or backed-up folders

@@ -23,21 +23,22 @@ and Outlook returns nothing.
 
 Minne indexes your Microsoft 365 mailbox **locally** and searches it with keyword *and*
 semantic (embedding) retrieval at the same time. Nothing leaves your machine except the
-Graph calls that fetch your own mail. *Minne* is Swedish for **memory**.
+Graph calls that fetch your own mail and a one-time model download from Hugging Face
+(skippable — point the config at a local model folder). *Minne* is Swedish for **memory**.
 
 ```
 minne config init          # write config.json, then set graph.clientId
 minne login                # sign in (browser)
-minne sync                 # fetch inbox + sent items, clean, chunk, embed
+minne sync                 # fetch inbox, archive + sent items; clean, chunk, embed
 minne search kickoff agenda from:anna after:2025-01
 minne eval eval/queries.local.json --verbose
 ```
 
-> **Status: phase 1.** This exists to answer one question with numbers — *does local hybrid
-> search find emails that Outlook search misses?* The `eval` command measures it. If hybrid
-> does not clearly beat both keyword-only search and Outlook on your own queries, the honest
-> answer is that it did not work. Background in [docs/motivation.md](docs/motivation.md);
-> what comes next in [docs/roadmap.md](docs/roadmap.md).
+> **Don't take the pitch on faith — measure it.** The `eval` command scores keyword, semantic,
+> hybrid and reranked retrieval against searches you actually struggled with in Outlook, so you
+> can see with numbers whether Minne finds emails that Outlook search misses on *your* mailbox.
+> Background in [docs/motivation.md](docs/motivation.md); what comes next in
+> [docs/roadmap.md](docs/roadmap.md).
 
 ## How it works
 
@@ -124,7 +125,7 @@ Edit the printed `config.json` (default location `%LOCALAPPDATA%\Minne\config.js
   "graph": {
     "clientId": "00000000-0000-0000-0000-000000000000",
     "tenantId": "common",
-    "folders": ["inbox", "sentitems"],
+    "folders": ["inbox", "archive", "sentitems"],
     "maxMessagesPerFolder": 0,
     "useDeviceCode": false
   }
@@ -176,7 +177,7 @@ status bar. It shares `%LOCALAPPDATA%\Minne` with the CLI (`--data-dir` / `MINNE
 work the same). Publish like the CLI: `dotnet publish src/MailSearch.App -c Release -r win-x64`
 → `minne-ui.exe`.
 
-## Evaluating (the actual point of phase 1)
+## Evaluating search quality
 
 1. Write down 30–50 searches you genuinely struggled with in Outlook, in your own words.
 2. For each, find the target email (with `search --ids`, or from the Internet-Message-Id in Outlook's message headers) and record it.
@@ -191,8 +192,8 @@ hybrid     57%    83%    90%  0.681      195
 rerank    63%    90%    93%  0.742      420
 ```
 
-Then compare with Outlook's own search on the same queries. If hybrid does not clearly beat
-both keyword-only and Outlook, the project should stop here.
+Then compare with Outlook's own search on the same queries. The table shows what each mode
+contributes; the comparison with Outlook shows whether the index is earning its keep.
 
 Knobs that matter, all in `config.json`: `indexing.chunkSizeChars`, `indexing.cleanBodies`,
 `search.candidateCount`, `search.rrfK`, `search.vectorWeight`, `rerank.depth`, and the embedding and reranker models.
@@ -256,9 +257,9 @@ source stays branding-free so the name can change without a repo-wide rename.
 
 The full threat model, and how to report a vulnerability privately, are in [SECURITY.md](SECURITY.md).
 
-## Known limitations (phase 1)
+## Known limitations
 
-* Vectors are scanned brute-force in memory on every search (~0.3 s for 100k chunks). Fine for evaluation; a persistent ANN index or quantization is a phase-2 item.
+* Vectors are scanned brute-force in memory on every search (~0.3 s for 100k chunks). Fine for mailboxes of that size; a persistent ANN index or quantization is on the [roadmap](docs/roadmap.md).
 * Attachments are not indexed, only the `has:attachment` flag.
 * Body cleaning is heuristic; check `search --json` snippets for quoted-reply leakage and extend `BodyCleaner` patterns.
 * Graph delta queries work per folder; `folders` must be listed explicitly.

@@ -102,6 +102,9 @@ static class Cli
                 Console.WriteLine($"database       : {paths.DatabaseFile}");
                 Console.WriteLine($"model directory: {ModelDownloader.ResolveModelDirectory(config.Embedding.Onnx, paths)}");
                 Console.WriteLine();
+                // config show output ends up pasted into bug reports; keep the key out of it.
+                if (!string.IsNullOrEmpty(config.Embedding.Http.ApiKey))
+                    config.Embedding.Http.ApiKey = "***";
                 Console.WriteLine(JsonSerializer.Serialize(config, AppConfig.JsonOptions));
                 return 0;
             default:

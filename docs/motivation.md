@@ -32,7 +32,8 @@ Mail is the most sensitive archive most people own. A search tool that ships it 
 a third party to be embedded is a bad trade for a marginally better ranking. All of
 Minne's processing happens on the machine: mail is fetched from Microsoft Graph with
 your own credentials, embedded on your CPU, and stored in a SQLite file you own.
-Nothing else leaves.
+Nothing else leaves. (The embedding model itself arrives the other way — downloaded
+once from Hugging Face, or supplied from a local folder for fully offline use.)
 
 The cost of that decision is real — CPU-based embedding of a large mailbox takes
 minutes, and the models are a few hundred megabytes on disk. It is worth it.
@@ -43,13 +44,12 @@ Finding email, not managing it. Composing, replying, filing and deleting are all
 things existing clients already do well, and there is no reason to rebuild them.
 Minne is the index and the search box.
 
-## How this is being decided
+## Decided by measurement
 
-Phase 1 exists to answer one question with numbers: does local hybrid search
-actually find emails that Outlook search misses? The `eval` command scores keyword,
-vector, hybrid and rerank modes against a query set of real searches that were
-genuinely difficult. If hybrid does not clearly beat both keyword-only retrieval and
-Outlook on that set, the honest conclusion is that the idea did not work, and the
-project stops.
+The claim Minne has to keep earning is: local hybrid search finds emails that
+Outlook search misses. The `eval` command scores keyword, vector, hybrid and rerank
+modes against a query set of real searches that were genuinely difficult, so every
+change that touches ranking — chunking, cleaning, fusion weights, models — is
+measured on that set rather than argued about.
 
-See [roadmap.md](roadmap.md) for what comes after, if it does.
+See [roadmap.md](roadmap.md) for what comes next.

@@ -1,14 +1,14 @@
 # Roadmap
 
-Phase 1 is the evaluation described in [motivation.md](motivation.md): prove hybrid
-retrieval beats Outlook on a real mailbox, or stop. Everything below is phase 2 and
-conditional on that result.
+Minne today: incremental Graph sync, hybrid and reranked search, the eval harness, and
+a slim desktop UI. Everything below is future work. Anything that touches ranking gets
+decided by eval numbers, not opinions — see [motivation.md](motivation.md).
 
-## Decided by measurement, in rough priority order
+## In rough priority order
 
 **Approximate nearest-neighbour index.** Vectors are currently scanned brute-force
-in memory on every search — about 0.3 s for 100k chunks. Fine for evaluating, wrong
-for daily use. Either a persistent ANN index or scalar quantisation of the stored
+in memory on every search — about 0.3 s for 100k chunks. Fine at that scale, wrong
+for a decade of mail. Either a persistent ANN index or scalar quantisation of the stored
 vectors.
 
 **OCR of embedded images.** People paste screenshots into email constantly, and that
@@ -21,6 +21,11 @@ Office document text is the obvious next body of content.
 **MCP server.** Exposing the local index as [Model Context Protocol](https://modelcontextprotocol.io)
 resources would let an agent search your mail without any of it leaving the machine —
 which is exactly the property that makes a local index worth having.
+
+**Packaging.** The zipped single-file executables are deliberate — no installer to
+trust, nothing written outside the data directory. A `winget` manifest would make
+install and update one command without giving that up; an installer proper only if
+demand shows up.
 
 ## Design notes carried forward
 
