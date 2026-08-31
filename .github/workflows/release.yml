@@ -90,7 +90,7 @@ jobs:
           sha256sum "$asset" > "$asset.sha256"
           echo "asset=$asset" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.rid }}
           path: |
