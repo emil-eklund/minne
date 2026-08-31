@@ -9,4 +9,4 @@ data/
 *.db-*
 msal_cache*
 eval/*.local.json
-appRegistration.json
+app-registration.json
