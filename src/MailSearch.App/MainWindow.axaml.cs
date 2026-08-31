@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 
 namespace MailSearch.App;
