@@ -1,29 +1,46 @@
 using System.Numerics.Tensors;
 using MailSearch.Config;
 using MailSearch.Embeddings;
+using MailSearch.Rerank;
 using MailSearch.Storage;
 
 namespace MailSearch.Search;
 
-public enum SearchMode { Hybrid, Keyword, Vector }
+public enum SearchMode { Hybrid, Keyword, Vector, Rerank }
 
 public sealed record SearchHit(
     int Rank, double Score, MessageRow Message, string Snippet, int? KeywordRank, int? VectorRank);
 
-/// <summary>Keyword (FTS5) + dense retrieval fused with RRF, with structured filters applied first.</summary>
+/// <summary>
+/// Keyword (FTS5) + dense retrieval fused with RRF, with structured filters applied first.
+/// <see cref="SearchMode.Rerank"/> retrieves like hybrid, then re-scores the top fused candidates
+/// with a cross-encoder so the best answers surface even when both retrievers ranked them low.
+/// </summary>
 public sealed class HybridSearcher
 {
+    /// <summary>Longest passage handed to the reranker; its tokenizer truncates further.</summary>
+    private const int MaxPassageChars = 2000;
+
     private readonly SearchStore _store;
     private readonly SearchConfig _config;
     private readonly Func<CancellationToken, Task<IEmbeddingProvider>> _embedder;
+    private readonly Func<CancellationToken, Task<IReranker>>? _rerankerFactory;
+    private readonly int _rerankDepth;
     private EmbeddingIndex? _index;
     private IEmbeddingProvider? _provider;
+    private IReranker? _reranker;
 
-    public HybridSearcher(SearchStore store, SearchConfig config, Func<CancellationToken, Task<IEmbeddingProvider>> embedder)
+    public HybridSearcher(
+        SearchStore store, SearchConfig config,
+        Func<CancellationToken, Task<IEmbeddingProvider>> embedder,
+        Func<CancellationToken, Task<IReranker>>? reranker = null,
+        int rerankDepth = 50)
     {
         _store = store;
         _config = config;
         _embedder = embedder;
+        _rerankerFactory = reranker;
+        _rerankDepth = rerankDepth;
     }
 
     public async Task<List<SearchHit>> SearchAsync(string rawQuery, SearchMode mode, int top, CancellationToken ct)
@@ -44,7 +61,7 @@ public sealed class HybridSearcher
             return rows.Select((m, i) => new SearchHit(i + 1, 0, m, Truncate(m.Body, 160), null, null)).ToList();
         }
 
-        if (mode is SearchMode.Hybrid or SearchMode.Keyword)
+        if (mode is SearchMode.Hybrid or SearchMode.Keyword or SearchMode.Rerank)
         {
             var hits = _store.FullTextSearch(query.ToFtsQuery(), allowed, candidates);
             if (hits.Count == 0 && query.Terms.Count + query.Phrases.Count > 1)
@@ -56,7 +73,7 @@ public sealed class HybridSearcher
             }
         }
 
-        if (mode is SearchMode.Hybrid or SearchMode.Vector)
+        if (mode is SearchMode.Hybrid or SearchMode.Vector or SearchMode.Rerank)
         {
             var (ranking, bestChunk) = await VectorSearchAsync(query.SemanticText, allowed, candidates, ct);
             vectorRanking = ranking;
@@ -70,6 +87,9 @@ public sealed class HybridSearcher
             SearchMode.Vector => vectorRanking.Select((id, i) => (Id: id, Score: 1.0 / (i + 1))).ToList(),
             _ => RankFusion.ReciprocalRank([(keywordRanking, 1.0), (vectorRanking, VectorWeightFor(query))], _config.RrfK),
         };
+
+        if (mode is SearchMode.Rerank)
+            fused = await RerankAsync(query.SemanticText, fused, vectorSnippets, ct);
 
         var topIds = fused.Take(top).ToList();
         var messages = _store.GetMessages(topIds.Select(f => f.Id));
@@ -85,6 +105,35 @@ public sealed class HybridSearcher
             results.Add(new SearchHit(results.Count + 1, score, m, snippet.ReplaceLineEndings(" "), kRank < 0 ? null : kRank + 1, vRank < 0 ? null : vRank + 1));
         }
         return results;
+    }
+
+    /// <summary>Re-scores the top fused candidates with the cross-encoder; deeper candidates keep their fusion order.</summary>
+    private async Task<List<(long Id, double Score)>> RerankAsync(
+        string queryText, List<(long Id, double Score)> fused, Dictionary<long, string> bestChunks, CancellationToken ct)
+    {
+        if (_rerankerFactory is null)
+            throw new InvalidOperationException("No reranker is configured (see rerank.onnx in config.json).");
+        var candidates = fused.Take(Math.Max(_rerankDepth, 1)).ToList();
+        if (candidates.Count == 0) return fused;
+
+        _reranker ??= await _rerankerFactory(ct);
+        var messages = _store.GetMessages(candidates.Select(c => c.Id));
+        var passages = candidates.Select(c =>
+        {
+            messages.TryGetValue(c.Id, out var m);
+            var text = bestChunks.TryGetValue(c.Id, out var chunk) && chunk.Length > 0 ? chunk : m?.Body ?? "";
+            var subject = m?.Subject ?? "";
+            var passage = subject.Length > 0 ? subject + "\n" + text : text;
+            return passage.Length <= MaxPassageChars ? passage : passage[..MaxPassageChars];
+        }).ToList();
+
+        var scores = await _reranker.ScoreAsync(queryText, passages, ct);
+        var reranked = candidates
+            .Select((c, i) => (c.Id, Score: (double)scores[i]))
+            .OrderByDescending(x => x.Score)
+            .ToList();
+        reranked.AddRange(fused.Skip(candidates.Count));
+        return reranked;
     }
 
     private async Task<(List<long> Ranking, Dictionary<long, long> BestChunk)> VectorSearchAsync(
@@ -118,7 +167,7 @@ public sealed class HybridSearcher
         return (ranked.Select(kv => kv.Key).ToList(), ranked.ToDictionary(kv => kv.Key, kv => kv.Value.ChunkId));
     }
 
-    /// <summary>Identifier-like queries ("INV-20431", "SAS13524") trust exact matches more; concept queries keep the configured balance.</summary>
+    /// <summary>Quoted identifiers ("INV-20431", "SAS13524") trust exact matches more; everything else keeps the configured balance.</summary>
     private double VectorWeightFor(ParsedQuery query) =>
         QueryHeuristics.ContainsIdentifier(query) ? _config.VectorWeight * _config.IdentifierVectorWeightFactor : _config.VectorWeight;
 

@@ -6,25 +6,32 @@ namespace MailSearch.Embeddings;
 public static class ModelDownloader
 {
     public static string ResolveModelDirectory(OnnxEmbeddingConfig config, DataPaths paths) =>
-        config.ModelDirectory ?? Path.Combine(paths.ModelsDirectory, config.ModelRepo.Replace('/', '_'));
+        ResolveModelDirectory(config.ModelDirectory, config.ModelRepo, paths);
+
+    public static string ResolveModelDirectory(string? modelDirectory, string modelRepo, DataPaths paths) =>
+        modelDirectory ?? Path.Combine(paths.ModelsDirectory, modelRepo.Replace('/', '_'));
+
+    public static Task<(string ModelPath, string TokenizerPath)> EnsureAsync(
+        OnnxEmbeddingConfig config, DataPaths paths, CancellationToken ct) =>
+        EnsureAsync(config.ModelDirectory, config.ModelRepo, config.ModelFile, config.TokenizerFile, paths, ct);
 
     public static async Task<(string ModelPath, string TokenizerPath)> EnsureAsync(
-        OnnxEmbeddingConfig config, DataPaths paths, CancellationToken ct)
+        string? modelDirectory, string modelRepo, string modelFile, string tokenizerFile, DataPaths paths, CancellationToken ct)
     {
-        var dir = ResolveModelDirectory(config, paths);
-        var modelPath = Path.Combine(dir, config.ModelFile.Replace('/', Path.DirectorySeparatorChar));
-        var tokenizerPath = Path.Combine(dir, config.TokenizerFile.Replace('/', Path.DirectorySeparatorChar));
+        var dir = ResolveModelDirectory(modelDirectory, modelRepo, paths);
+        var modelPath = Path.Combine(dir, modelFile.Replace('/', Path.DirectorySeparatorChar));
+        var tokenizerPath = Path.Combine(dir, tokenizerFile.Replace('/', Path.DirectorySeparatorChar));
 
-        if (config.ModelDirectory is not null)
+        if (modelDirectory is not null)
         {
             if (!File.Exists(modelPath) || !File.Exists(tokenizerPath))
-                throw new FileNotFoundException($"Model directory {dir} must contain {config.ModelFile} and {config.TokenizerFile}.");
+                throw new FileNotFoundException($"Model directory {dir} must contain {modelFile} and {tokenizerFile}.");
             return (modelPath, tokenizerPath);
         }
 
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        await DownloadIfMissingAsync(http, config.ModelRepo, config.ModelFile, modelPath, ct);
-        await DownloadIfMissingAsync(http, config.ModelRepo, config.TokenizerFile, tokenizerPath, ct);
+        await DownloadIfMissingAsync(http, modelRepo, modelFile, modelPath, ct);
+        await DownloadIfMissingAsync(http, modelRepo, tokenizerFile, tokenizerPath, ct);
         return (modelPath, tokenizerPath);
     }
 

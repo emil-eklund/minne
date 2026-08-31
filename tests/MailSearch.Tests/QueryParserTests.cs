@@ -102,9 +102,10 @@ public class QueryHeuristicsTests
         Assert.Equal(expected, QueryHeuristics.LooksLikeIdentifier(term));
 
     [Fact]
-    public void Query_with_identifier_is_flagged()
+    public void Only_quoted_identifiers_are_flagged()
     {
-        Assert.True(QueryHeuristics.ContainsIdentifier(QueryParser.Parse("invoice INV-20431 status")));
+        Assert.True(QueryHeuristics.ContainsIdentifier(QueryParser.Parse("invoice \"INV-20431\" status")));
+        Assert.False(QueryHeuristics.ContainsIdentifier(QueryParser.Parse("invoice INV-20431 status"))); // unquoted: normal balance
         Assert.False(QueryHeuristics.ContainsIdentifier(QueryParser.Parse("travel expenses policy")));
     }
 }

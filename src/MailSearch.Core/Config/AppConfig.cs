@@ -10,6 +10,7 @@ public sealed class AppConfig
     public EmbeddingConfig Embedding { get; set; } = new();
     public IndexingConfig Indexing { get; set; } = new();
     public SearchConfig Search { get; set; } = new();
+    public RerankConfig Rerank { get; set; } = new();
 
     public static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -114,6 +115,31 @@ public sealed class SearchConfig
     public int RrfK { get; set; } = 60;
     /// <summary>Weight of the vector retriever relative to keyword (1.0 = equal).</summary>
     public double VectorWeight { get; set; } = 1.0;
-    /// <summary>Multiplier applied to the vector weight when the query contains identifier-like tokens (invoice/ticket numbers, addresses).</summary>
+    /// <summary>Multiplier applied to the vector weight when the query contains a QUOTED identifier-like token ("INV-20431", an address): quoting signals the user wants an exact match. Unquoted terms keep the normal balance.</summary>
     public double IdentifierVectorWeightFactor { get; set; } = 0.4;
+}
+
+/// <summary>Cross-encoder re-ranking of the fused candidates (search mode "rerank").</summary>
+public sealed class RerankConfig
+{
+    /// <summary>How many fused candidates are re-scored; anything deeper keeps its fusion order.</summary>
+    public int Depth { get; set; } = 50;
+    public OnnxRerankConfig Onnx { get; set; } = new();
+}
+
+/// <summary>
+/// Local ONNX cross-encoder. The default is the multilingual mMARCO MiniLM reranker (same model family
+/// and language coverage as the default embedding model, ~450 MB, downloaded on first use). Any Hugging Face
+/// cross-encoder with an ONNX export plus tokenizer.json can be used instead, or a local folder.
+/// </summary>
+public sealed class OnnxRerankConfig
+{
+    public string ModelRepo { get; set; } = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1";
+    public string ModelFile { get; set; } = "onnx/model.onnx";
+    public string TokenizerFile { get; set; } = "tokenizer.json";
+    /// <summary>Optional local directory containing the model and tokenizer files. Overrides downloading.</summary>
+    public string? ModelDirectory { get; set; }
+    /// <summary>Token budget for query + passage together.</summary>
+    public int MaxTokens { get; set; } = 512;
+    public int BatchSize { get; set; } = 8;
 }

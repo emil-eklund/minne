@@ -29,10 +29,12 @@ search:  filters (from/to/date/attachments) ──> SQL row set
 
 * **Keyword** retrieval (SQLite FTS5) handles exact terms: names, invoice numbers, domains.
 * **Semantic** retrieval (dense vectors) handles paraphrase and typos: "kickoff schedule" finds "kick-off agenda".
-* **Hybrid** fuses both with RRF. Queries containing identifier-like tokens (`INV-20431`, `SAS13524`, addresses)
-  automatically lean on keyword matches (`search.identifierVectorWeightFactor`); stopwords in nine European
+* **Hybrid** fuses both with RRF. Quoted tokens (`"INV-20431"`, `"SAS13524"`) are the explicit request for an exact match: quoted identifiers
+  lean on keyword matches (`search.identifierVectorWeightFactor`; unquoted words keep the balanced weighting); stopwords in nine European
   languages are dropped from the keyword side but kept for the embedding. `eval` reports all three modes so you
   can see what each contributes.
+* **Rerank** (`--mode rerank`) retrieves like hybrid, then re-scores the top candidates (`rerank.depth`, default 50)
+  with a multilingual cross-encoder, so a target both retrievers ranked low can still surface at the top.
 
 ### Embedding model
 
@@ -52,6 +54,17 @@ Changing model after indexing requires `mailsearch embed --reset`; the index ref
 
 Alternatives worth trying with the eval harness: `intfloat/multilingual-e5-small` (stronger, needs prefixes),
 `jinaai/jina-embeddings-v2-base-de` (German/English), `KBLab/sentence-bert-swedish-cased` (Swedish only).
+
+### Reranker (search mode `rerank`)
+
+Hybrid retrieval is optimised for not *missing* the target, not for putting it first. Mode `rerank`
+re-scores the top fused candidates with a cross-encoder that reads query and passage together:
+[`cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`](https://huggingface.co/cross-encoder/mmarco-mMiniLMv2-L12-H384-v1)
+— the multilingual mMARCO reranker from the same sentence-transformers family as the default embedding
+model (~450 MB ONNX, CPU, downloaded on first use). Expect a few hundred extra ms per search for
+`rerank.depth` = 50 candidates. Any other ONNX cross-encoder can be plugged in via `rerank.onnx.modelRepo`
+or `modelDirectory`, exactly like the embedding model. `eval` includes the rerank mode automatically, so
+whether re-ranking earns its latency is a measurement, not a guess.
 
 ## Setup
 
@@ -112,7 +125,7 @@ Embedding runs at roughly 50–150 chunks/s on a laptop CPU; a 20k-message mailb
 ```
 mailsearch search kickoff agenda
 mailsearch search "kick-off agenda" from:anna after:2024-06 before:2024-07 has:attachment
-mailsearch search budget --mode keyword        # or vector / hybrid (default)
+mailsearch search budget --mode keyword        # or vector / hybrid (default) / rerank
 mailsearch search budget --top 25 --ids        # show ids for building an eval set
 mailsearch search budget --json
 ```
@@ -127,8 +140,8 @@ A slim desktop front end (Avalonia — native rendering, no web view) over the s
 dotnet run --project src/MailSearch.App
 ```
 
-Type to search (debounced) or press Enter; pick hybrid/keyword/vector and top-N in the toolbar.
-Each result shows which retriever found it (`kw` / `vec` / `k+v`) with matched terms in bold; the
+Type to search (debounced) or press Enter; pick Hybrid, Hybrid + rerank, Exact words, or By meaning (plus top-N) in the toolbar.
+Each result shows which retriever found it (`exact` / `similar` / `both`) with matched terms in bold; the
 preview pane shows the cleaned body, *Open in Outlook* (web link) and *Copy Message-Id* (handy for
 building eval sets). *Sync mailbox* runs the same sync + embed as the CLI, with progress in the
 status bar. It shares `%LOCALAPPDATA%\MailSearch` with the CLI (`--data-dir` / `MAILSEARCH_DATA`
@@ -147,13 +160,14 @@ mode       R@1    R@5   R@10    MRR   avg ms
 keyword    43%    60%    63%  0.512       12
 vector     37%    70%    83%  0.507      180
 hybrid     57%    83%    90%  0.681      195
+rerank    63%    90%    93%  0.742      420
 ```
 
 Then compare with Outlook's own search on the same queries. If hybrid does not clearly beat
 both keyword-only and Outlook, the project should stop here.
 
 Knobs that matter, all in `config.json`: `indexing.chunkSizeChars`, `indexing.cleanBodies`,
-`search.candidateCount`, `search.rrfK`, `search.vectorWeight`, and the embedding model.
+`search.candidateCount`, `search.rrfK`, `search.vectorWeight`, `rerank.depth`, and the embedding and reranker models.
 
 ## Building
 
@@ -182,6 +196,7 @@ src/MailSearch.Core
   Embeddings/   IEmbeddingProvider, OnnxEmbeddingProvider, HttpEmbeddingProvider, tokenizer, downloader
   Storage/      SearchStore (SQLite: messages, FTS5, chunk vectors)
   Search/       QueryParser, HybridSearcher, RankFusion
+  Rerank/        IReranker, OnnxReranker (cross-encoder), RerankerFactory
   Eval/         EvalRunner
   Indexer.cs    sync → clean → chunk → embed orchestration
 src/MailSearch.App   desktop UI (Avalonia; mailsearch-ui.exe)

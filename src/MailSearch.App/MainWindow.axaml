@@ -14,7 +14,7 @@
       <TextBox Name="QueryBox" Grid.Column="0"
                Watermark='e.g.  kickoff agenda from:anna after:2025-01 has:attachment "exact phrase"'
                Text="{Binding QueryText}" KeyDown="OnQueryKeyDown"/>
-      <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="110" VerticalAlignment="Center"
+      <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="150" VerticalAlignment="Center"
                 ItemsSource="{Binding Modes}" SelectedItem="{Binding SelectedMode}"/>
       <ComboBox Grid.Column="2" Margin="8,0,0,0" MinWidth="80" VerticalAlignment="Center"
                 ItemsSource="{Binding TopOptions}" SelectedItem="{Binding SelectedTop}"/>
@@ -45,7 +45,7 @@
             <Grid RowDefinitions="Auto,Auto" Margin="0,3">
               <DockPanel Grid.Row="0">
                 <Border DockPanel.Dock="Left" Background="{Binding ViaBrush}" CornerRadius="3"
-                        Padding="5,1" Margin="0,0,8,0" MinWidth="34" VerticalAlignment="Center">
+                        Padding="5,1" Margin="0,0,8,0" MinWidth="50" VerticalAlignment="Center">
                   <TextBlock Text="{Binding Via}" FontSize="10" Foreground="White"
                              HorizontalAlignment="Center"/>
                 </Border>

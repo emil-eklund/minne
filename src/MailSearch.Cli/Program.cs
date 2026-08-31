@@ -5,6 +5,7 @@ using MailSearch.Config;
 using MailSearch.Embeddings;
 using MailSearch.Eval;
 using MailSearch.Mail;
+using MailSearch.Rerank;
 using MailSearch.Search;
 using MailSearch.Storage;
 
@@ -41,10 +42,10 @@ static class Cli
           embed [--reset]             embed chunks that have no vector yet (--reset re-embeds everything)
           reindex                     re-run body cleaning + chunking from stored raw bodies, then re-embed
                                       (use after changing cleaning rules or indexing.* settings; no Graph access needed)
-          search <query> [--mode hybrid|keyword|vector] [--top N] [--json] [--ids]
+          search <query> [--mode hybrid|keyword|vector|rerank] [--top N] [--json] [--ids]
                                       query syntax: words "exact phrase" from:x to:x after:2024-01 before:2024-06 has:attachment folder:inbox
           eval <file> [--top N] [--verbose]
-                                      score keyword / vector / hybrid against a query set
+                                      score keyword / vector / hybrid / rerank against a query set
           eval init <file>            write an example evaluation file
           stats                       index statistics
 
@@ -208,10 +209,12 @@ static class Cli
         var json = TakeFlag(args, "--json");
         var showIds = TakeFlag(args, "--ids");
         var query = string.Join(' ', args).Trim();
-        if (query.Length == 0) return Fail("usage: search <query> [--mode hybrid|keyword|vector] [--top N] [--json] [--ids]");
+        if (query.Length == 0) return Fail("usage: search <query> [--mode hybrid|keyword|vector|rerank] [--top N] [--json] [--ids]");
 
         using var store = new SearchStore(paths.DatabaseFile);
-        var searcher = new HybridSearcher(store, config.Search, c => EmbeddingProviderFactory.CreateAsync(config.Embedding, paths, c));
+        var searcher = new HybridSearcher(store, config.Search,
+            c => EmbeddingProviderFactory.CreateAsync(config.Embedding, paths, c),
+            c => RerankerFactory.CreateAsync(config.Rerank, paths, c), config.Rerank.Depth);
         var sw = Stopwatch.StartNew();
         var hits = await searcher.SearchAsync(query, mode, top, ct);
         sw.Stop();
@@ -269,9 +272,11 @@ static class Cli
 
         var set = EvalSet.Load(file);
         using var store = new SearchStore(paths.DatabaseFile);
-        var searcher = new HybridSearcher(store, config.Search, c => EmbeddingProviderFactory.CreateAsync(config.Embedding, paths, c));
+        var searcher = new HybridSearcher(store, config.Search,
+            c => EmbeddingProviderFactory.CreateAsync(config.Embedding, paths, c),
+            c => RerankerFactory.CreateAsync(config.Rerank, paths, c), config.Rerank.Depth);
         var runner = new EvalRunner(searcher, store);
-        var results = await runner.RunAsync(set, [SearchMode.Keyword, SearchMode.Vector, SearchMode.Hybrid], top, ct);
+        var results = await runner.RunAsync(set, [SearchMode.Keyword, SearchMode.Vector, SearchMode.Hybrid, SearchMode.Rerank], top, ct);
 
         var unresolved = results[0].Results.Where(r => r.Unresolvable).ToList();
         Console.WriteLine($"{set.Queries.Count} queries, {results[0].Total} with resolvable expected ids{(unresolved.Count > 0 ? $" ({unresolved.Count} skipped)" : "")}.");
@@ -287,12 +292,12 @@ static class Cli
             if (verbose)
             {
                 Console.WriteLine();
-                Console.WriteLine($"{"query",-50} {"kw",4} {"vec",4} {"hyb",4}");
+                Console.WriteLine($"{"query",-50} {"kw",4} {"vec",4} {"hyb",4} {"rr",4}");
                 for (var i = 0; i < set.Queries.Count; i++)
                 {
                     if (results[0].Results[i].Unresolvable) continue;
                     string R(int m) => results[m].Results[i].Rank?.ToString() ?? "-";
-                    Console.WriteLine($"{Truncate(set.Queries[i].Query, 50),-50} {R(0),4} {R(1),4} {R(2),4}");
+                    Console.WriteLine($"{Truncate(set.Queries[i].Query, 50),-50} {R(0),4} {R(1),4} {R(2),4} {R(3),4}");
                 }
             }
         }
@@ -319,7 +324,8 @@ static class Cli
         null or "hybrid" => SearchMode.Hybrid,
         "keyword" or "kw" or "fts" => SearchMode.Keyword,
         "vector" or "vec" or "semantic" => SearchMode.Vector,
-        _ => throw new InvalidOperationException($"unknown mode '{s}' (hybrid|keyword|vector)"),
+        "rerank" or "rr" => SearchMode.Rerank,
+        _ => throw new InvalidOperationException($"unknown mode '{s}' (hybrid|keyword|vector|rerank)"),
     };
 
     private static string? TakeOption(List<string> args, string name)

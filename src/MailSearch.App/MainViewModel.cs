@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using MailSearch.Config;
 using MailSearch.Embeddings;
 using MailSearch.Mail;
+using MailSearch.Rerank;
 using MailSearch.Search;
 using MailSearch.Storage;
 
@@ -28,6 +29,12 @@ public abstract class ObservableObject : INotifyPropertyChanged
 
 public sealed record SnippetRun(string Text, bool Highlight);
 
+/// <summary>A search mode with a user-facing label.</summary>
+public sealed record ModeOption(SearchMode Mode, string Label)
+{
+    public override string ToString() => Label;
+}
+
 /// <summary>One search hit prepared for display.</summary>
 public sealed class ResultItem
 {
@@ -44,7 +51,7 @@ public sealed class ResultItem
     }
 
     public int Rank => _hit.Rank;
-    public string Via => _hit.KeywordRank is null ? "vec" : _hit.VectorRank is null ? "kw" : "k+v";
+    public string Via => _hit.KeywordRank is null ? "similar" : _hit.VectorRank is null ? "exact" : "both";
     public IBrush ViaBrush => _hit.KeywordRank is null ? VecBrush : _hit.VectorRank is null ? KwBrush : BothBrush;
     public string Date => _hit.Message.Received.ToLocalTime().ToString("yyyy-MM-dd");
     public string From => _hit.Message.SenderName is { Length: > 0 } n ? n : _hit.Message.SenderAddress ?? "?";
@@ -67,11 +74,11 @@ public sealed class ResultItem
     public string DetailTo => _hit.Message.Recipients.Length > 0 ? $"To: {_hit.Message.Recipients}" : "";
 
     public string DetailMeta =>
-        $"{_hit.Message.Received.ToLocalTime():yyyy-MM-dd HH:mm} · {_hit.Message.Folder} · rank {Rank} · matched by {ViaLong}";
+        $"{_hit.Message.Received.ToLocalTime():yyyy-MM-dd HH:mm} · {_hit.Message.Folder} · rank {Rank} · found by {ViaLong}";
 
-    private string ViaLong => _hit.KeywordRank is null ? "vector"
-        : _hit.VectorRank is null ? "keyword"
-        : $"keyword (#{_hit.KeywordRank}) + vector (#{_hit.VectorRank})";
+    private string ViaLong => _hit.KeywordRank is null ? "similar meaning"
+        : _hit.VectorRank is null ? "exact words"
+        : $"exact words (#{_hit.KeywordRank}) + similar meaning (#{_hit.VectorRank})";
 
     public string Body => _hit.Message.Body.Length > 0 ? _hit.Message.Body : "(empty body)";
     public bool HasWebLink => !string.IsNullOrEmpty(_hit.Message.WebLink);
@@ -104,7 +111,7 @@ public sealed class ResultItem
 
 public sealed class MainViewModel : ObservableObject, IDisposable
 {
-    private const string IdleStatus = "Type a query — filters: from: to: after: before: has:attachment folder:";
+    private const string IdleStatus = "Type a query — filters: from: to: after: before: has:attachment folder: — quote \"INV-1234\" for exact ids";
 
     private readonly DataPaths _paths;
     private readonly AppConfig _config;
@@ -114,6 +121,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private HybridSearcher? _searcher;
     private IEmbeddingProvider? _provider;
+    private IReranker? _reranker;
     private CancellationTokenSource? _debounceCts;
     private CancellationTokenSource? _searchCts;
     private CancellationTokenSource? _syncCts;
@@ -135,10 +143,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set { if (Set(ref _queryText, value)) QueueSearch(); }
     }
 
-    public SearchMode[] Modes { get; } = [SearchMode.Hybrid, SearchMode.Keyword, SearchMode.Vector];
+    public ModeOption[] Modes { get; } =
+    [
+        new(SearchMode.Hybrid, "Hybrid"),
+        new(SearchMode.Rerank, "Hybrid + rerank"),
+        new(SearchMode.Keyword, "Exact words"),
+        new(SearchMode.Vector, "By meaning"),
+    ];
 
-    private SearchMode _selectedMode = SearchMode.Hybrid;
-    public SearchMode SelectedMode
+    private ModeOption _selectedMode = new(SearchMode.Hybrid, "Hybrid");
+    public ModeOption SelectedMode
     {
         get => _selectedMode;
         set { if (Set(ref _selectedMode, value)) QueueSearch(immediate: true); }
@@ -201,8 +215,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         try
         {
             if (cts.IsCancellationRequested) return;
-            var searcher = _searcher ??= new HybridSearcher(_store, _config.Search, GetProviderAsync);
-            var mode = SelectedMode;
+            var searcher = _searcher ??= new HybridSearcher(
+                _store, _config.Search, GetProviderAsync, GetRerankerAsync, _config.Rerank.Depth);
+            var mode = SelectedMode.Mode;
+            var modeLabel = SelectedMode.Label.ToLowerInvariant();
             var top = SelectedTop;
             var sw = Stopwatch.StartNew();
             var hits = await Task.Run(() => searcher.SearchAsync(query, mode, top, cts.Token), cts.Token);
@@ -212,7 +228,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             Selected = Results.FirstOrDefault();
             Status = hits.Count == 0
                 ? "No results."
-                : $"{hits.Count} results · {mode.ToString().ToLowerInvariant()} · {sw.ElapsedMilliseconds} ms";
+                : $"{hits.Count} results · {modeLabel} · {sw.ElapsedMilliseconds} ms";
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { Status = $"error: {ex.Message}"; }
@@ -281,6 +297,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         return _provider = await EmbeddingProviderFactory.CreateAsync(_config.Embedding, _paths, ct);
     }
 
+    private async Task<IReranker> GetRerankerAsync(CancellationToken ct)
+    {
+        if (_reranker is not null) return _reranker;
+        Post("Loading reranker model… (first use may download ~450 MB)");
+        return _reranker = await RerankerFactory.CreateAsync(_config.Rerank, _paths, ct);
+    }
+
     private async Task RefreshStatsAsync()
     {
         try
@@ -305,6 +328,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _provider?.Dispose();
+        _reranker?.Dispose();
         _store.Dispose();
     }
 }

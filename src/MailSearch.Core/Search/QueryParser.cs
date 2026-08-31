@@ -169,5 +169,9 @@ public static class QueryHeuristics
         return dot > 0 && dot < term.Length - 2 && !term.EndsWith('.') && term.All(c => char.IsLetterOrDigit(c) || c is '.' or '-'); // domain-like
     }
 
-    public static bool ContainsIdentifier(ParsedQuery q) => q.Terms.Any(LooksLikeIdentifier);
+    /// <summary>
+    /// True only when a QUOTED token ("INV-20431") looks like an identifier: quoting is the explicit request
+    /// for an exact match. Unquoted identifier-looking words keep the normal keyword/vector balance.
+    /// </summary>
+    public static bool ContainsIdentifier(ParsedQuery q) => q.Phrases.Any(LooksLikeIdentifier);
 }

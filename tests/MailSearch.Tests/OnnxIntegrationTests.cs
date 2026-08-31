@@ -33,4 +33,20 @@ public class OnnxIntegrationTests
         Assert.True(Sim(0, 2) > Sim(0, 3), $"swedish {Sim(0, 2)} vs unrelated {Sim(0, 3)}");
         Assert.InRange(System.Numerics.Tensors.TensorPrimitives.Norm(v[0]), 0.99f, 1.01f);
     }
+
+    [SkippableFact]
+    public async Task Default_reranker_scores_relevant_passages_higher()
+    {
+        Skip.IfNot(Enabled, "set MAILSEARCH_RUN_MODEL_TESTS=1 to run");
+        var paths = new DataPaths();
+        using var reranker = await MailSearch.Rerank.OnnxReranker.CreateAsync(new OnnxRerankConfig(), paths, CancellationToken.None);
+        var scores = await reranker.ScoreAsync("How many people live in Berlin?",
+        [
+            "Berlin has a population of 3.5 million registered inhabitants.", // relevant
+            "A recipe for a simple chocolate cake with dark chocolate.",      // unrelated
+            "Berlin har ungefär 3,5 miljoner invånare.",                      // relevant, Swedish
+        ], CancellationToken.None);
+        Assert.True(scores[0] > scores[1], $"relevant {scores[0]} vs unrelated {scores[1]}");
+        Assert.True(scores[2] > scores[1], $"swedish {scores[2]} vs unrelated {scores[1]}");
+    }
 }
