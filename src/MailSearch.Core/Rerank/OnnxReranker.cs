@@ -22,13 +22,13 @@ public sealed class OnnxReranker : IReranker, IUnloadable
 
     public string ModelId { get; }
 
-    public OnnxReranker(string modelPath, ITokenizer tokenizer, OnnxRerankConfig config, string modelId, bool doubleSeparator)
+    public OnnxReranker(string modelPath, ITokenizer tokenizer, OnnxRerankConfig config, string modelId)
     {
         _modelPath = modelPath;
         _tokenizer = tokenizer;
         _config = config;
         ModelId = modelId;
-        _doubleSeparator = doubleSeparator;
+        _doubleSeparator = tokenizer.DoublePairSeparator;
 
         _options = new SessionOptions
         {
@@ -59,13 +59,11 @@ public sealed class OnnxReranker : IReranker, IUnloadable
     {
         var (modelPath, tokenizerPath) = await ModelDownloader.EnsureAsync(
             config.ModelDirectory, config.ModelRepo, config.ModelFile, config.TokenizerFile, paths, ct);
-        var tokenizer = new HuggingFaceTokenizer(tokenizerPath);
-        // RoBERTa/XLM-R tokenizers declare "<s>"; their pair format needs a double separator between segments.
-        var doubleSeparator = (await File.ReadAllTextAsync(tokenizerPath, ct)).Contains("\"content\":\"<s>\"", StringComparison.Ordinal);
+        var tokenizer = new SentencePieceTokenizerAdapter(tokenizerPath);
         var modelId = config.ModelDirectory is not null
             ? $"local:{Path.GetFileName(config.ModelDirectory)}/{config.ModelFile}"
             : $"{config.ModelRepo}/{config.ModelFile}";
-        return new OnnxReranker(modelPath, tokenizer, config, modelId, doubleSeparator);
+        return new OnnxReranker(modelPath, tokenizer, config, modelId);
     }
 
     public Task<float[]> ScoreAsync(string query, IReadOnlyList<string> passages, CancellationToken ct) =>

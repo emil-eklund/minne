@@ -7,12 +7,7 @@
     <PackageReference Include="Microsoft.Identity.Client" Version="4.88.0" />
     <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="4.88.0" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.29.0" />
+    <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
     <PackageReference Include="System.Numerics.Tensors" Version="10.0.11" />
-    <PackageReference Include="Tokenizers.DotNet" Version="1.4.1" />
-    <!-- Native tokenizer: select by the publish RID when one is set, so cross-RID
-         publishing works; fall back to the host OS for RID-less build/test runs. -->
-    <PackageReference Include="Tokenizers.DotNet.runtime.win-x64" Version="1.4.1" Condition="'$(RuntimeIdentifier)' == 'win-x64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows')))" />
-    <PackageReference Include="Tokenizers.DotNet.runtime.linux-x64" Version="1.4.1" Condition="'$(RuntimeIdentifier)' == 'linux-x64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Linux')))" />
-    <PackageReference Include="Tokenizers.DotNet.runtime.osx-arm64" Version="1.4.1" Condition="'$(RuntimeIdentifier)' == 'osx-arm64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('OSX')))" />
   </ItemGroup>
 </Project>

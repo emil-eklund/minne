@@ -15,9 +15,21 @@ public static class ModelDownloader
         OnnxEmbeddingConfig config, DataPaths paths, CancellationToken ct) =>
         EnsureAsync(config.ModelDirectory, config.ModelRepo, config.ModelFile, config.TokenizerFile, paths, ct);
 
+    /// <summary>The SentencePiece model every XLM-R repo ships, and what the managed tokenizer reads.</summary>
+    private const string SentencePieceFile = "sentencepiece.bpe.model";
+
+    /// <summary>
+    /// A config.json written before the tokenizer moved to SentencePiece still names tokenizer.json,
+    /// which the managed tokenizer cannot read. Substitute the SentencePiece model instead of making
+    /// the user hand-edit their config; the ids are identical, so nothing needs re-indexing.
+    /// </summary>
+    private static string MigrateTokenizerFile(string tokenizerFile) =>
+        Path.GetExtension(tokenizerFile).Equals(".json", StringComparison.OrdinalIgnoreCase) ? SentencePieceFile : tokenizerFile;
+
     public static async Task<(string ModelPath, string TokenizerPath)> EnsureAsync(
         string? modelDirectory, string modelRepo, string modelFile, string tokenizerFile, DataPaths paths, CancellationToken ct)
     {
+        tokenizerFile = MigrateTokenizerFile(tokenizerFile);
         var dir = ResolveModelDirectory(modelDirectory, modelRepo, paths);
         var modelPath = Path.Combine(dir, modelFile.Replace('/', Path.DirectorySeparatorChar));
         var tokenizerPath = Path.Combine(dir, tokenizerFile.Replace('/', Path.DirectorySeparatorChar));
@@ -25,7 +37,13 @@ public static class ModelDownloader
         if (modelDirectory is not null)
         {
             if (!File.Exists(modelPath) || !File.Exists(tokenizerPath))
-                throw new FileNotFoundException($"Model directory {dir} must contain {modelFile} and {tokenizerFile}.");
+            {
+                // A folder prepared for an older release has tokenizer.json and nothing else to say why it is rejected.
+                var hint = tokenizerFile == SentencePieceFile && File.Exists(Path.Combine(dir, "tokenizer.json"))
+                    ? $" {SentencePieceFile} replaced tokenizer.json; it comes from the same Hugging Face repo."
+                    : "";
+                throw new FileNotFoundException($"Model directory {dir} must contain {modelFile} and {tokenizerFile}.{hint}");
+            }
             return (modelPath, tokenizerPath);
         }
 
