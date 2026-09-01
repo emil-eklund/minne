@@ -37,7 +37,7 @@ public sealed record ModeResult(SearchMode Mode, IReadOnlyList<QueryResult> Resu
     public int Total => Results.Count(r => !r.Unresolvable);
     public double RecallAt(int k) => Total == 0 ? 0 : Results.Count(r => r.Rank is { } rank && rank <= k) / (double)Total;
     public double Mrr => Total == 0 ? 0 : Results.Where(r => !r.Unresolvable).Sum(r => r.Rank is { } rank ? 1.0 / rank : 0) / Total;
-    public double AvgMs => Results.Count == 0 ? 0 : Results.Average(r => r.Milliseconds);
+    public double AvgMs => Total == 0 ? 0 : Results.Where(r => !r.Unresolvable).Average(r => r.Milliseconds);
 }
 
 /// <summary>Runs an evaluation set through each retrieval mode and reports recall@k / MRR.</summary>

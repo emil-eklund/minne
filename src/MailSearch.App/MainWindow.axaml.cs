@@ -13,7 +13,26 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Opened += (_, _) => QueryBox.Focus();
+        DataContextChanged += (_, _) =>
+        {
+            if (Vm is { } vm) vm.SignInPromptRequested += ShowSignInPrompt;
+        };
     }
+
+    /// <summary>Device-code sign-in instructions (URL + code) are too long for the status bar; show them copyable.</summary>
+    private void ShowSignInPrompt(string message) => new Window
+    {
+        Title = "Microsoft sign-in",
+        Width = 560,
+        SizeToContent = SizeToContent.Height,
+        WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        Content = new SelectableTextBlock
+        {
+            Text = message,
+            Margin = new Avalonia.Thickness(16),
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+        },
+    }.Show(this);
 
     private MainViewModel? Vm => DataContext as MainViewModel;
 
@@ -77,6 +96,15 @@ public partial class MainWindow : Window
             DefaultExtension = "json",
         });
         if (file?.TryGetLocalPath() is { } path) vm.CreateExampleEvalSet(path);
+    }
+
+    private async void OnCopyConfigClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is { } vm && Clipboard is { } clipboard)
+        {
+            await clipboard.SetTextAsync(vm.GetRedactedConfigJson());
+            vm.Status = "Copied config to the clipboard (API key redacted).";
+        }
     }
 
     private void OnOpenConfigClick(object? sender, RoutedEventArgs e)

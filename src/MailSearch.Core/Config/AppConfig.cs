@@ -40,12 +40,19 @@ public sealed class AppConfig
 public sealed class GraphConfig
 {
     /// <summary>
-    /// Application (client) id of the Entra app registration used for sign-in. The default is the
-    /// shared registration that ships with the app (public client, delegated Mail.Read + User.Read,
-    /// works for both organizational and personal accounts), so sign-in works with zero setup.
-    /// Replace it with your own registration's id to stay in full control of the app identity.
+    /// The shared app registration that ships with the app (public client, delegated
+    /// Mail.Read + User.Read, organizational and personal accounts). Resolved at sign-in time
+    /// whenever <see cref="ClientId"/> is empty — kept out of config.json on purpose, so the
+    /// registration can be rotated by shipping a new build.
     /// </summary>
-    public string ClientId { get; set; } = "4754f0c2-e9e1-4dfb-a821-4a404e1363f5";
+    public const string DefaultClientId = "4754f0c2-e9e1-4dfb-a821-4a404e1363f5";
+
+    /// <summary>
+    /// Application (client) id of your own Entra app registration, if you want the app asking
+    /// for access to your mail to be one you control. Leave empty to sign in through the shared
+    /// registration (<see cref="DefaultClientId"/>).
+    /// </summary>
+    public string ClientId { get; set; } = "";
     /// <summary>Tenant id, or "common" / "organizations" / "consumers".</summary>
     public string TenantId { get; set; } = "common";
     /// <summary>Well-known folder names (inbox, archive, sentitems, drafts, deleteditems) or folder ids.</summary>

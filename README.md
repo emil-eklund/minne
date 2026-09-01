@@ -88,7 +88,7 @@ the app to apply.
 ```json
 {
   "graph": {
-    "clientId": "4754f0c2-e9e1-4dfb-a821-4a404e1363f5",
+    "clientId": "",
     "tenantId": "common",
     "folders": ["inbox", "archive", "sentitems"],
     "maxMessagesPerFolder": 0,
@@ -96,6 +96,10 @@ the app to apply.
   }
 }
 ```
+
+An empty `clientId` means "sign in through the shared app registration that ships with the app"
+(which also lets a later release rotate that registration without touching your config); put your
+own registration's id there to use yours instead.
 
 Set `maxMessagesPerFolder` (e.g. 2000) for a quick first experiment. Folder values are Graph well-known
 names (`inbox`, `archive`, `sentitems`, `drafts`, `deleteditems`) or folder ids; `archive` is included by
@@ -192,7 +196,7 @@ executables that need no .NET installed:
 | Download | Contents |
 |---|---|
 | `minne-<version>-win-x64.zip` | `minne.exe` |
-| `minne-<version>-linux-x64.tar.gz` | `minne` |
+| `minne-<version>-linux-x64.tar.gz` | `minne` (desktop app — needs a graphical session, e.g. X11/Wayland) |
 
 Each archive has a `.sha256` published next to it. The binaries are not code-signed, so
 Windows SmartScreen will warn on first run.
@@ -237,7 +241,7 @@ source stays branding-free so the name can change without a repo-wide rename.
 ## Privacy and security notes
 
 * Mail bodies (raw and cleaned) are stored in plain text in `mail.db` inside the data directory. Keep that directory out of synced folders.
-* The Graph refresh token is stored encrypted (DPAPI on Windows, keychain/keyring on macOS/Linux; plain file fallback on headless Linux).
+* The Graph refresh token is stored encrypted (DPAPI on Windows, keychain/keyring on macOS/Linux; plain file fallback when no secure store is available).
 * No telemetry, no network calls other than Graph and the one-time model download from huggingface.co (or none, with `modelDirectory`).
 * The default sign-in uses a shared public-client app registration; it contains no secret, but if you would rather control the app identity yourself, [register your own](#use-your-own-entra-app-registration-optional).
 

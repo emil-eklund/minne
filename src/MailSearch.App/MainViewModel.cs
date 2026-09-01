@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
 using Avalonia.Media;
 using Avalonia.Threading;
 using MailSearch.Config;
@@ -135,7 +136,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _paths = new DataPaths(dataDir);
         _config = AppConfig.Load(_paths.ConfigFile);
         // First run: materialize the defaults so there is a file to edit (Tools → Open config file).
-        if (!File.Exists(_paths.ConfigFile)) _config.Save(_paths.ConfigFile);
+        // A failure must not take down startup — the defaults still apply in memory.
+        if (!File.Exists(_paths.ConfigFile))
+        {
+            try { _config.Save(_paths.ConfigFile); }
+            catch (Exception ex) { _status = $"Could not write {_paths.ConfigFile}: {ex.Message}"; }
+        }
         StatusLog.Sink = Post;
         _store = new SearchStore(_paths.DatabaseFile);
         if (_config.Search.IdleUnloadSeconds > 0)
@@ -322,7 +328,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public Task SignOutAsync() => RunMaintenanceAsync("sign out", async _ =>
     {
-        await new GraphAuth(_config.Graph, _paths).SignOutAsync();
+        await CreateAuth().SignOutAsync();
         return "Signed out — the next sync will ask you to sign in again.";
     });
 
@@ -352,9 +358,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         await RefreshStatsAsync();
     }
 
+    /// <summary>Raised on the UI thread with the full device-code sign-in instructions (URL + code) — too long for the status bar.</summary>
+    public event Action<string>? SignInPromptRequested;
+
+    private GraphAuth CreateAuth() => new(_config.Graph, _paths, message =>
+    {
+        Post(message);
+        Dispatcher.UIThread.Post(() => SignInPromptRequested?.Invoke(message));
+    });
+
     private async Task SyncFoldersAsync(bool full, CancellationToken ct)
     {
-        var auth = new GraphAuth(_config.Graph, _paths);
+        var auth = CreateAuth();
         Post("Signing in… (a browser window may open)");
         await auth.GetAccessTokenAsync(ct);
         var source = new GraphMailSource(auth, _config.Graph);
@@ -380,43 +395,78 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     // ---- evaluation ----
 
-    /// <summary>Runs an eval set through every retrieval mode and returns a plain-text report.</summary>
+    /// <summary>
+    /// Runs an eval set through every retrieval mode and returns a plain-text report. Participates in
+    /// the same exclusivity state as sync (IsSyncing, the Cancel button, one operation at a time);
+    /// closing the eval window cancels through <paramref name="ct"/>.
+    /// </summary>
     public async Task<string> RunEvalAsync(string file, CancellationToken ct)
     {
         const int top = 10;
+        if (IsSyncing) return "Another operation is already running — wait for it to finish, then try again.";
         var set = EvalSet.Load(file);
-        await _gate.WaitAsync(ct);
+        var cts = _syncCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        IsSyncing = true;
         try
         {
-            var searcher = _searcher ??= new HybridSearcher(
-                _store, _config.Search, GetProviderAsync, GetRerankerAsync, _config.Rerank.Depth);
-            var runner = new EvalRunner(searcher, _store);
-            var results = await Task.Run(() => runner.RunAsync(
-                set, [SearchMode.Keyword, SearchMode.Vector, SearchMode.Hybrid, SearchMode.Rerank], top, ct,
-                (mode, i, n) => Post($"Evaluating {mode.ToString().ToLowerInvariant()} {i}/{n}…")), ct);
-            Post("Evaluation finished.");
-            return FormatEvalReport(file, set, results, top);
+            await _gate.WaitAsync(cts.Token);
+            try
+            {
+                var searcher = _searcher ??= new HybridSearcher(
+                    _store, _config.Search, GetProviderAsync, GetRerankerAsync, _config.Rerank.Depth);
+                var runner = new EvalRunner(searcher, _store);
+                var results = await Task.Run(() => runner.RunAsync(
+                    set, [SearchMode.Keyword, SearchMode.Vector, SearchMode.Hybrid, SearchMode.Rerank], top, cts.Token,
+                    (mode, i, n) => Post($"Evaluating {mode.ToString().ToLowerInvariant()} {i}/{n}…")), cts.Token);
+                Post("Evaluation finished.");
+                return FormatEvalReport(file, set, results, top);
+            }
+            finally
+            {
+                _lastUseUtc = DateTime.UtcNow;
+                _resourcesLoaded = true;
+                _gate.Release();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Post("Evaluation cancelled.");
+            return "Evaluation cancelled.";
         }
         finally
         {
-            _lastUseUtc = DateTime.UtcNow;
-            _resourcesLoaded = true;
-            _gate.Release();
+            IsSyncing = false;
         }
     }
 
     public void CreateExampleEvalSet(string path)
     {
-        new EvalSet
+        try
         {
-            Description = "Queries you have actually struggled to find. 'expected' takes Internet-Message-Ids (Copy Message-Id in the preview pane), Graph ids or rowid:N.",
-            Queries =
-            [
-                new EvalCase { Query = "kickoff schedule", Expected = ["<put-message-id-here@example.com>"], Note = "email said 'kick-off agenda'" },
-                new EvalCase { Query = "invoice from:contoso after:2025-01", Expected = ["rowid:123"] },
-            ],
-        }.Save(path);
-        Status = $"Wrote {path} — fill it in, then run Tools → Evaluate search quality.";
+            new EvalSet
+            {
+                Description = "Queries you have actually struggled to find. 'expected' takes Internet-Message-Ids (Copy Message-Id in the preview pane), Graph ids or rowid:N.",
+                Queries =
+                [
+                    new EvalCase { Query = "kickoff schedule", Expected = ["<put-message-id-here@example.com>"], Note = "email said 'kick-off agenda'" },
+                    new EvalCase { Query = "invoice from:contoso after:2025-01", Expected = ["rowid:123"] },
+                ],
+            }.Save(path);
+            Status = $"Wrote {path} — fill it in, then run Tools → Evaluate search quality.";
+        }
+        catch (Exception ex)
+        {
+            Status = $"Could not write {path}: {ex.Message}";
+        }
+    }
+
+    /// <summary>The configuration as JSON with the embedding API key redacted — safe to paste into a bug report.</summary>
+    public string GetRedactedConfigJson()
+    {
+        var clone = JsonSerializer.Deserialize<AppConfig>(
+            JsonSerializer.Serialize(_config, AppConfig.JsonOptions), AppConfig.JsonOptions)!;
+        if (!string.IsNullOrEmpty(clone.Embedding.Http.ApiKey)) clone.Embedding.Http.ApiKey = "***";
+        return JsonSerializer.Serialize(clone, AppConfig.JsonOptions);
     }
 
     private static string FormatEvalReport(string file, EvalSet set, IReadOnlyList<ModeResult> results, int top)
@@ -488,7 +538,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        if (StatusLog.Sink == (Action<string>)Post) StatusLog.Sink = null; // don't root this instance from the static
         _idleTimer?.Stop();
+        _syncCts?.Cancel();
         _provider?.Dispose();
         _reranker?.Dispose();
         _store.Dispose();

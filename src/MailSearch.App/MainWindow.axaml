@@ -42,6 +42,8 @@
               <Separator/>
               <MenuItem Header="Open config file" Click="OnOpenConfigClick"
                         ToolTip.Tip="Changes take effect after restarting the app"/>
+              <MenuItem Header="Copy config (redacted)" Click="OnCopyConfigClick"
+                        ToolTip.Tip="Copies config.json with the API key redacted — safe to paste into a bug report"/>
               <MenuItem Header="Open data folder" Click="OnOpenDataFolderClick"/>
               <Separator/>
               <MenuItem Header="Sign out" Click="OnSignOutClick" IsEnabled="{Binding !IsSyncing}"/>

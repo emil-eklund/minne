@@ -42,6 +42,6 @@ body:
     attributes:
       label: Relevant config
       description: >
-        The relevant parts of config.json (Tools → Open config file), with any API key
-        removed. Especially the embedding model, chunk size and search weights.
+        Paste from Tools → Copy config (redacted) — it strips the API key for you.
+        Especially the embedding model, chunk size and search weights.
       render: json

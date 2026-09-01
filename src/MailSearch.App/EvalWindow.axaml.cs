@@ -18,7 +18,7 @@ public partial class EvalWindow : Window
             {
                 Report.Text = await vm.RunEvalAsync(evalFile, _cts.Token);
             }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException) { Report.Text = "Evaluation cancelled."; }
             catch (Exception ex)
             {
                 Report.Text = $"Evaluation failed: {ex.Message}";
