@@ -70,8 +70,10 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IUnloadable
     {
         var (modelPath, tokenizerPath) = await ModelDownloader.EnsureAsync(config, paths, ct);
         var tokenizer = new SentencePieceTokenizerAdapter(tokenizerPath);
-        var modelId = config.ModelDirectory is not null ? $"local:{Path.GetFileName(config.ModelDirectory)}/{config.ModelFile}" : $"{config.ModelRepo}/{config.ModelFile}";
-        return new OnnxEmbeddingProvider(modelPath, tokenizer, config, modelId);
+        var model = config.ModelDirectory is not null ? $"local:{Path.GetFileName(config.ModelDirectory)}/{config.ModelFile}" : $"{config.ModelRepo}/{config.ModelFile}";
+        // The token budget shapes the vectors (window boundaries and context), so it is part of the
+        // identity: changing maxTokens trips the same embed --reset guard as swapping the model.
+        return new OnnxEmbeddingProvider(modelPath, tokenizer, config, $"{model}@{config.MaxTokens}");
     }
 
     public Task<float[][]> EmbedDocumentsAsync(IReadOnlyList<string> texts, CancellationToken ct) =>
@@ -82,22 +84,50 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IUnloadable
 
     private float[][] Embed(IReadOnlyList<string> texts, CancellationToken ct)
     {
-        var result = new float[texts.Count][];
-        for (var offset = 0; offset < texts.Count; offset += _config.BatchSize)
+        // Texts over the token budget are embedded as a series of windows whose pooled vectors are
+        // averaged weighted by window length. For mean pooling that equals mean-pooling every token
+        // (each window vector is sum/length), so nothing past the budget is lost — unlike truncation,
+        // which silently dropped it. Each window still fits the model's trained sequence length.
+        var windows = new List<(int TextIndex, int[] Tokens)>();
+        for (var i = 0; i < texts.Count; i++)
+            foreach (var w in SplitIntoWindows(_tokenizer.Encode(texts[i]), _config.MaxTokens))
+                windows.Add((i, w));
+
+        var sums = new float[texts.Count][];
+        var weights = new float[texts.Count];
+        for (var offset = 0; offset < windows.Count; offset += _config.BatchSize)
         {
             ct.ThrowIfCancellationRequested();
-            var batch = texts.Skip(offset).Take(_config.BatchSize).ToList();
-            var vectors = EmbedBatch(batch, lastInSequence: offset + _config.BatchSize >= texts.Count);
-            for (var i = 0; i < vectors.Length; i++) result[offset + i] = vectors[i];
+            var batch = windows.Skip(offset).Take(_config.BatchSize).ToList();
+            var vectors = EmbedBatch(batch.Select(b => b.Tokens).ToArray(), lastInSequence: offset + _config.BatchSize >= windows.Count);
+            for (var i = 0; i < vectors.Length; i++)
+            {
+                var (textIndex, tokens) = batch[i];
+                sums[textIndex] ??= new float[vectors[i].Length];
+                TensorPrimitives.MultiplyAdd(vectors[i], tokens.Length, sums[textIndex], sums[textIndex]);
+                weights[textIndex] += tokens.Length;
+            }
+        }
+
+        var result = new float[texts.Count][];
+        for (var i = 0; i < texts.Count; i++)
+        {
+            var v = sums[i];
+            TensorPrimitives.Divide(v, weights[i], v);
+            if (_config.Normalize)
+            {
+                var norm = TensorPrimitives.Norm(v);
+                if (norm > 0) TensorPrimitives.Divide(v, norm, v);
+            }
+            result[i] = v;
         }
         return result;
     }
 
-    private float[][] EmbedBatch(IReadOnlyList<string> texts, bool lastInSequence)
+    private float[][] EmbedBatch(IReadOnlyList<int[]> encoded, bool lastInSequence)
     {
-        var encoded = texts.Select(t => Truncate(_tokenizer.Encode(t), _config.MaxTokens)).ToArray();
         var maxLen = Math.Max(1, encoded.Max(e => e.Length));
-        var n = texts.Count;
+        var n = encoded.Count;
 
         var ids = new long[n * maxLen];
         var mask = new long[n * maxLen];
@@ -167,24 +197,35 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IUnloadable
                 }
                 if (count > 0) TensorPrimitives.Divide(v, count, v);
             }
-            if (_config.Normalize)
-            {
-                var norm = TensorPrimitives.Norm(v);
-                if (norm > 0) TensorPrimitives.Divide(v, norm, v);
-            }
             vectors[i] = v;
         }
         return vectors;
     }
 
-    /// <summary>Keep the first maxTokens-1 tokens and the final (EOS/SEP) token so the sequence still ends properly.</summary>
-    private static int[] Truncate(int[] tokens, int maxTokens)
+    /// <summary>
+    /// Splits an encoded sequence (BOS ... EOS) into windows of at most <paramref name="maxTokens"/>
+    /// tokens, each carrying its own BOS/EOS so every window is a well-formed model input.
+    /// A sequence within the budget comes back unchanged as a single window.
+    /// </summary>
+    public static IEnumerable<int[]> SplitIntoWindows(int[] tokens, int maxTokens)
     {
-        if (tokens.Length <= maxTokens) return tokens;
-        var result = new int[maxTokens];
-        Array.Copy(tokens, result, maxTokens - 1);
-        result[^1] = tokens[^1];
-        return result;
+        if (tokens.Length <= maxTokens)
+        {
+            yield return tokens;
+            yield break;
+        }
+        var bos = tokens[0];
+        var eos = tokens[^1];
+        var contentPerWindow = Math.Max(1, maxTokens - 2);
+        for (var start = 1; start < tokens.Length - 1; start += contentPerWindow)
+        {
+            var length = Math.Min(contentPerWindow, tokens.Length - 1 - start);
+            var window = new int[length + 2];
+            window[0] = bos;
+            Array.Copy(tokens, start, window, 1, length);
+            window[^1] = eos;
+            yield return window;
+        }
     }
 
     public void Dispose()
