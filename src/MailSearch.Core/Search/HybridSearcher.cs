@@ -154,7 +154,7 @@ public sealed class HybridSearcher
         _provider ??= await _embedder(ct);
         var storedModel = _store.GetMeta("embedding_model");
         if (storedModel is not null && storedModel != _provider.ModelId)
-            throw new InvalidOperationException($"Index was embedded with '{storedModel}' but the configured model is '{_provider.ModelId}'. Run 'embed --reset'.");
+            throw new InvalidOperationException($"Index was embedded with '{storedModel}' but the configured model is '{_provider.ModelId}'. Use Tools → Re-embed everything.");
 
         _index ??= _store.LoadEmbeddings(_provider.Dimensions);
         if (_index.Count == 0) return ([], []);

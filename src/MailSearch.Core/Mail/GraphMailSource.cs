@@ -86,7 +86,7 @@ public sealed class GraphMailSource : IMailSource
             if (retryable && attempt < 6)
             {
                 var wait = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(Math.Pow(2, attempt + 1));
-                Console.Error.WriteLine($"  throttled by Graph, waiting {wait.TotalSeconds:0}s...");
+                StatusLog.Post($"Throttled by Graph, waiting {wait.TotalSeconds:0}s…");
                 await Task.Delay(wait, ct);
                 continue;
             }

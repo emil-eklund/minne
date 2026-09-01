@@ -11,23 +11,24 @@ public sealed class GraphAuth
 
     private readonly GraphConfig _config;
     private readonly DataPaths _paths;
+    private readonly Action<string>? _devicePrompt;
     private IPublicClientApplication? _app;
 
-    public GraphAuth(GraphConfig config, DataPaths paths)
+    /// <param name="devicePrompt">Shows the device-code sign-in instructions (URL + code). The status
+    /// bar truncates, so the desktop app passes a handler that opens a copyable prompt.</param>
+    public GraphAuth(GraphConfig config, DataPaths paths, Action<string>? devicePrompt = null)
     {
         _config = config;
         _paths = paths;
+        _devicePrompt = devicePrompt;
     }
 
     private async Task<IPublicClientApplication> GetAppAsync()
     {
         if (_app is not null) return _app;
-        if (string.IsNullOrWhiteSpace(_config.ClientId))
-            throw new InvalidOperationException(
-                "graph.clientId is not set. Register an app in Entra ID (public client, redirect http://localhost, " +
-                "delegated permissions User.Read + Mail.Read) and put its Application (client) ID in config.json.");
+        var clientId = string.IsNullOrWhiteSpace(_config.ClientId) ? GraphConfig.DefaultClientId : _config.ClientId;
 
-        var app = PublicClientApplicationBuilder.Create(_config.ClientId)
+        var app = PublicClientApplicationBuilder.Create(clientId)
             .WithAuthority(AzureCloudInstance.AzurePublic, _config.TenantId)
             .WithDefaultRedirectUri()
             .Build();
@@ -68,7 +69,7 @@ public sealed class GraphAuth
             {
                 result = await app.AcquireTokenWithDeviceCode(Scopes, dc =>
                 {
-                    Console.WriteLine(dc.Message);
+                    (_devicePrompt ?? StatusLog.Post)(dc.Message);
                     return Task.CompletedTask;
                 }).ExecuteAsync(ct);
             }
@@ -78,7 +79,7 @@ public sealed class GraphAuth
                     .WithUseEmbeddedWebView(false)
                     .ExecuteAsync(ct);
             }
-            Console.WriteLine($"Signed in as {result.Account.Username}");
+            StatusLog.Post($"Signed in as {result.Account.Username}");
             return result.AccessToken;
         }
     }

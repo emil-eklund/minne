@@ -1,5 +1,5 @@
 {
-  "description": "Example evaluation set. Copy to eval/queries.local.json (git-ignored), replace with 30-50 real queries you have struggled with in Outlook, and fill in the ids of the emails you were actually looking for. Get ids with: minne search <query> --ids",
+  "description": "Example evaluation set. Copy to eval/queries.local.json (git-ignored), replace with 30-50 real queries you have struggled with in Outlook, and fill in the ids of the emails you were actually looking for. Get ids with the Copy Message-Id button in the preview pane.",
   "queries": [
     {
       "query": "kickoff schedule",

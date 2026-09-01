@@ -37,7 +37,7 @@ public sealed record ModeResult(SearchMode Mode, IReadOnlyList<QueryResult> Resu
     public int Total => Results.Count(r => !r.Unresolvable);
     public double RecallAt(int k) => Total == 0 ? 0 : Results.Count(r => r.Rank is { } rank && rank <= k) / (double)Total;
     public double Mrr => Total == 0 ? 0 : Results.Where(r => !r.Unresolvable).Sum(r => r.Rank is { } rank ? 1.0 / rank : 0) / Total;
-    public double AvgMs => Results.Count == 0 ? 0 : Results.Average(r => r.Milliseconds);
+    public double AvgMs => Total == 0 ? 0 : Results.Where(r => !r.Unresolvable).Average(r => r.Milliseconds);
 }
 
 /// <summary>Runs an evaluation set through each retrieval mode and reports recall@k / MRR.</summary>
@@ -52,7 +52,8 @@ public sealed class EvalRunner
         _store = store;
     }
 
-    public async Task<List<ModeResult>> RunAsync(EvalSet set, IEnumerable<SearchMode> modes, int top, CancellationToken ct)
+    public async Task<List<ModeResult>> RunAsync(EvalSet set, IEnumerable<SearchMode> modes, int top, CancellationToken ct,
+        Action<SearchMode, int, int>? progress = null)
     {
         var results = new List<ModeResult>();
         foreach (var mode in modes)
@@ -60,6 +61,7 @@ public sealed class EvalRunner
             var perQuery = new List<QueryResult>();
             foreach (var c in set.Queries)
             {
+                progress?.Invoke(mode, perQuery.Count + 1, set.Queries.Count);
                 var expected = c.Expected.Select(_store.FindMessageRowId).Where(r => r is not null).Select(r => r!.Value).ToHashSet();
                 if (expected.Count == 0)
                 {

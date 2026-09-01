@@ -20,8 +20,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: windows-latest, rid: win-x64,   ui: true }
-          - { os: ubuntu-latest,  rid: linux-x64, ui: false }
+          - { os: windows-latest, rid: win-x64 }
+          - { os: ubuntu-latest,  rid: linux-x64 }
 
     steps:
       - uses: actions/checkout@v7
@@ -42,18 +42,7 @@ jobs:
           echo "value=$v" >> "$GITHUB_OUTPUT"
           echo "Building version $v"
 
-      - name: Publish CLI
-        shell: bash
-        run: |
-          dotnet publish src/MailSearch.Cli \
-            -c Release -r ${{ matrix.rid }} \
-            -p:Version=${{ steps.version.outputs.value }} \
-            -o artifacts/${{ matrix.rid }}
-
-      # The desktop UI is Windows-only for now: it is the platform the Outlook audience is on,
-      # and the MSAL token cache uses DPAPI there without extra configuration.
-      - name: Publish desktop UI
-        if: matrix.ui
+      - name: Publish desktop app
         shell: bash
         run: |
           dotnet publish src/MailSearch.App \
@@ -66,9 +55,9 @@ jobs:
         run: |
           staging="staging/minne-${{ steps.version.outputs.value }}-${{ matrix.rid }}"
           mkdir -p "$staging"
-          # Ship only the executables; PDBs and the .NET host config stay out of the archive.
+          # Ship only the executable; PDBs and the .NET host config stay out of the archive.
           find artifacts/${{ matrix.rid }} -maxdepth 1 -type f \
-            \( -name 'minne' -o -name 'minne.exe' -o -name 'minne-ui.exe' \) \
+            \( -name 'minne' -o -name 'minne.exe' \) \
             -exec cp {} "$staging/" \;
           cp README.md LICENSE "$staging/"
           ls -la "$staging"

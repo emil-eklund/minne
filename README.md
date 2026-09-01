@@ -26,17 +26,18 @@ semantic (embedding) retrieval at the same time. Nothing leaves your machine exc
 Graph calls that fetch your own mail and a one-time model download from Hugging Face
 (skippable — point the config at a local model folder). *Minne* is Swedish for **memory**.
 
-```
-minne config init          # write config.json, then set graph.clientId
-minne login                # sign in (browser)
-minne sync                 # fetch inbox, archive + sent items; clean, chunk, embed
-minne search kickoff agenda from:anna after:2025-01
-minne eval eval/queries.local.json --verbose
-```
+## Quick start
 
-> **Don't take the pitch on faith — measure it.** The `eval` command scores keyword, semantic,
-> hybrid and reranked retrieval against searches you actually struggled with in Outlook, so you
-> can see with numbers whether Minne finds emails that Outlook search misses on *your* mailbox.
+1. Download `minne` from [releases](https://github.com/emil-eklund/minne/releases) and run it. No install, no configuration.
+2. Press **Sync mailbox**. A browser window opens for Microsoft sign-in; grant read access to your mail.
+3. Wait while it downloads the embedding model (once), fetches your inbox, archive and
+   sent items, and embeds them — a 20k-message mailbox takes ~10 minutes the first time.
+   Later syncs fetch only changes (Graph delta queries) and take seconds.
+4. Type what you remember.
+
+> **Don't take the pitch on faith — measure it.** *Tools → Evaluate search quality* scores keyword,
+> semantic, hybrid and reranked retrieval against searches you actually struggled with in Outlook, so
+> you can see with numbers whether Minne finds emails that Outlook search misses on *your* mailbox.
 > Background in [docs/motivation.md](docs/motivation.md); what comes next in
 > [docs/roadmap.md](docs/roadmap.md).
 
@@ -58,10 +59,68 @@ search:  filters (from/to/date/attachments) ──> SQL row set
 * **Semantic** retrieval (dense vectors) handles paraphrase and typos: "kickoff schedule" finds "kick-off agenda".
 * **Hybrid** fuses both with RRF. Quoted tokens (`"INV-20431"`, `"SAS13524"`) are the explicit request for an exact match: quoted identifiers
   lean on keyword matches (`search.identifierVectorWeightFactor`; unquoted words keep the balanced weighting); stopwords in nine European
-  languages are dropped from the keyword side but kept for the embedding. `eval` reports all three modes so you
-  can see what each contributes.
-* **Rerank** (`--mode rerank`) retrieves like hybrid, then re-scores the top candidates (`rerank.depth`, default 50)
+  languages are dropped from the keyword side but kept for the embedding.
+* **Hybrid + rerank** retrieves like hybrid, then re-scores the top candidates (`rerank.depth`, default 50)
   with a multilingual cross-encoder, so a target both retrievers ranked low can still surface at the top.
+
+## Searching
+
+Type to search (debounced) or press Enter; pick **Hybrid**, **Hybrid + rerank**, **Exact words**
+or **By meaning** (plus top-N) in the toolbar. Query syntax:
+
+```
+kickoff agenda
+"kick-off agenda" from:anna after:2024-06 before:2024-07 has:attachment
+invoice folder:inbox
+```
+
+Each result is tagged with which retriever found it (`exact` / `similar` / `both`) with matched
+terms in bold; the preview pane shows the cleaned body, *Open in Outlook* (web link) and
+*Copy Message-Id* (handy for building eval sets).
+
+## Configuration
+
+Everything lives in one data directory — `%LOCALAPPDATA%\Minne` on Windows, overridable
+with `--data-dir` or the `MINNE_DATA` environment variable. A default `config.json` is
+written there on first launch; open it via *Tools → Open config file*, edit, and restart
+the app to apply.
+
+```json
+{
+  "graph": {
+    "clientId": "",
+    "tenantId": "common",
+    "folders": ["inbox", "archive", "sentitems"],
+    "maxMessagesPerFolder": 0,
+    "useDeviceCode": false
+  }
+}
+```
+
+An empty `clientId` means "sign in through the shared app registration that ships with the app"
+(which also lets a later release rotate that registration without touching your config); put your
+own registration's id there to use yours instead.
+
+Set `maxMessagesPerFolder` (e.g. 2000) for a quick first experiment. Folder values are Graph well-known
+names (`inbox`, `archive`, `sentitems`, `drafts`, `deleteditems`) or folder ids; `archive` is included by
+default since many people keep their inbox empty and archive everything.
+
+### Use your own Entra app registration (optional)
+
+By default Minne signs in through a shared app registration (a *public client* — it holds no
+secret and can only sign in as you, with delegated `Mail.Read` + `User.Read`). If you would
+rather the app asking for access to your mail be one you control and can revoke — or your
+tenant blocks unverified third-party apps — register your own in ~3 minutes:
+
+1. [Entra admin center](https://entra.microsoft.com) → App registrations → **New registration**
+2. Name: anything. Supported account types: *Accounts in this organizational directory only* (or multi-tenant).
+3. Redirect URI: platform **Mobile and desktop applications**, value `http://localhost`
+4. After creation: **Authentication** → *Allow public client flows* → **Yes** (needed for device-code login)
+5. **API permissions** → Add → Microsoft Graph → *Delegated* → `Mail.Read` and `User.Read`. Admin consent is only needed if your tenant requires it for all apps.
+6. Put the **Application (client) ID** in `graph.clientId` (and your tenant id in `graph.tenantId` for single-tenant registrations).
+
+The shared registration's full manifest is in [src/app-registration.json](src/app-registration.json)
+if you want to replicate it exactly.
 
 ### Embedding model
 
@@ -77,120 +136,48 @@ Any other model can be plugged in without code changes:
 | Offline local folder | `embedding.onnx.modelDirectory` pointing at a folder with the model + tokenizer |
 | Ollama / LM Studio / any OpenAI-compatible server | `embedding.provider: "http"`, `embedding.http.endpoint`, `model` |
 
-Changing model after indexing requires `minne embed --reset`; the index refuses to mix models.
+Changing model after indexing requires *Tools → Re-embed everything*; the index refuses to mix models.
 
 Alternatives worth trying with the eval harness: `intfloat/multilingual-e5-small` (stronger, needs prefixes).
 The local ONNX path reads SentencePiece models, so it takes XLM-R-family repos only; WordPiece models
 (`jinaai/jina-embeddings-v2-base-de`, `KBLab/sentence-bert-swedish-cased`) need the HTTP provider instead.
 
-### Reranker (search mode `rerank`)
+### Reranker (mode "Hybrid + rerank")
 
-Hybrid retrieval is optimised for not *missing* the target, not for putting it first. Mode `rerank`
+Hybrid retrieval is optimised for not *missing* the target, not for putting it first. The rerank mode
 re-scores the top fused candidates with a cross-encoder that reads query and passage together:
 [`cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`](https://huggingface.co/cross-encoder/mmarco-mMiniLMv2-L12-H384-v1)
 — the multilingual mMARCO reranker from the same sentence-transformers family as the default embedding
 model (~450 MB ONNX, CPU, downloaded on first use). Expect a few hundred extra ms per search for
 `rerank.depth` = 50 candidates. Any other XLM-R ONNX cross-encoder can be plugged in via `rerank.onnx.modelRepo`
-or `modelDirectory`, exactly like the embedding model. `eval` includes the rerank mode automatically, so
+or `modelDirectory`, exactly like the embedding model. The eval harness includes the rerank mode automatically, so
 whether re-ranking earns its latency is a measurement, not a guess.
 
-## Setup
+## The Tools menu
 
-### 1. Entra app registration (one-time, ~3 minutes)
-
-The tool is a *public client*: it signs in as you and reads only your own mailbox.
-
-1. [Entra admin center](https://entra.microsoft.com) → App registrations → **New registration**
-2. Name: anything. Supported account types: *Accounts in this organizational directory only* (or multi-tenant if you want to use it with several tenants).
-3. Redirect URI: platform **Mobile and desktop applications**, value `http://localhost`
-4. After creation: **Authentication** → *Allow public client flows* → **Yes** (needed for device-code login)
-5. **API permissions** → Add → Microsoft Graph → *Delegated* → `Mail.Read` and `User.Read`. Admin consent is only needed if your tenant requires it for all apps.
-6. Copy the **Application (client) ID**.
-
-This project deliberately ships no shared client id. Registering your own takes three
-minutes and means the app asking for access to your mail is one you control and can
-revoke. (A well-known Microsoft first-party public client such as Graph PowerShell will
-also work for a throwaway local test, but it is Microsoft's registration rather than
-yours, many tenants block it, and it is not something to rely on.)
-
-### 2. Configure
-
-```
-minne config init
-```
-
-Edit the printed `config.json` (default location `%LOCALAPPDATA%\Minne\config.json`, override with `--data-dir` or `MINNE_DATA`):
-
-```json
-{
-  "graph": {
-    "clientId": "00000000-0000-0000-0000-000000000000",
-    "tenantId": "common",
-    "folders": ["inbox", "archive", "sentitems"],
-    "maxMessagesPerFolder": 0,
-    "useDeviceCode": false
-  }
-}
-```
-
-Set `maxMessagesPerFolder` (e.g. 2000) for a quick first experiment. Folder values are Graph well-known
-names (`inbox`, `archive`, `sentitems`, `drafts`, `deleteditems`) or folder ids; `archive` is included by
-default since many people keep their inbox empty and archive everything.
-
-### 3. Run
-
-```
-minne login
-minne sync            # first run: downloads model, full sync, embeds everything
-minne sync            # later runs: only changes (delta query)
-minne stats
-minne reindex         # after editing BodyCleaner or indexing.* settings: re-clean + re-chunk from
-                      # stored raw bodies and re-embed, without touching Graph (seconds, not minutes)
-```
-
-Embedding runs at roughly 50–150 chunks/s on a laptop CPU; a 20k-message mailbox takes ~10 minutes the first time.
-
-## Searching
-
-```
-minne search kickoff agenda
-minne search "kick-off agenda" from:anna after:2024-06 before:2024-07 has:attachment
-minne search budget --mode keyword        # or vector / hybrid (default) / rerank
-minne search budget --top 25 --ids        # show ids for building an eval set
-minne search budget --json
-```
-
-Result lines are tagged `[kw ]`, `[vec]` or `[k+v]` to show which retriever(s) found them.
-
-## Desktop UI
-
-A slim desktop front end (Avalonia — native rendering, no web view) over the same index and config:
-
-```
-dotnet run --project src/MailSearch.App
-```
-
-Type to search (debounced) or press Enter; pick Hybrid, Hybrid + rerank, Exact words, or By meaning (plus top-N) in the toolbar.
-Each result shows which retriever found it (`exact` / `similar` / `both`) with matched terms in bold; the
-preview pane shows the cleaned body, *Open in Outlook* (web link) and *Copy Message-Id* (handy for
-building eval sets). *Sync mailbox* runs the same sync + embed as the CLI, with progress in the
-status bar. It shares `%LOCALAPPDATA%\Minne` with the CLI (`--data-dir` / `MINNE_DATA`
-work the same). Publish like the CLI: `dotnet publish src/MailSearch.App -c Release -r win-x64`
-→ `minne-ui.exe`.
+| Item | What it does |
+|---|---|
+| Full resync | Re-fetches every folder from scratch instead of applying deltas |
+| Re-embed everything | Drops all vectors and embeds again — required after changing the embedding model or token budget |
+| Rebuild index | Re-runs body cleaning + chunking from stored raw bodies (after changing `indexing.*` settings or cleaning rules), then re-embeds; no Graph access needed |
+| Evaluate search quality… | Scores keyword / vector / hybrid / rerank against a query set (below) |
+| Create example eval set… | Writes a template query set to fill in |
+| Open config file / data folder | Edit `config.json` (restart to apply) or inspect `mail.db` and the models |
+| Sign out | Forgets the signed-in account; the next sync asks again |
 
 ## Evaluating search quality
 
 1. Write down 30–50 searches you genuinely struggled with in Outlook, in your own words.
-2. For each, find the target email (with `search --ids`, or from the Internet-Message-Id in Outlook's message headers) and record it.
-3. `minne eval init eval/queries.local.json`, fill it in (see `eval/queries.example.json`).
-4. `minne eval eval/queries.local.json --verbose`
+2. For each, find the target email and record its id (*Copy Message-Id* in the preview pane, or the Internet-Message-Id from Outlook's message headers).
+3. *Tools → Create example eval set…*, fill it in (see [eval/queries.example.json](eval/queries.example.json)).
+4. *Tools → Evaluate search quality…*
 
 ```
 mode       R@1    R@5   R@10    MRR   avg ms
 keyword    43%    60%    63%  0.512       12
 vector     37%    70%    83%  0.507      180
 hybrid     57%    83%    90%  0.681      195
-rerank    63%    90%    93%  0.742      420
+rerank     63%    90%    93%  0.742      420
 ```
 
 Then compare with Outlook's own search on the same queries. The table shows what each mode
@@ -198,7 +185,7 @@ contributes; the comparison with Outlook shows whether the index is earning its 
 
 Knobs that matter, all in `config.json`: `indexing.chunkSizeChars`, `indexing.cleanBodies`,
 `search.candidateCount`, `search.rrfK`, `search.vectorWeight`, `rerank.depth`, and the embedding and reranker models.
-The desktop UI unloads the models and the vector index after `search.idleUnloadSeconds` (default 120)
+The app unloads the models and the vector index after `search.idleUnloadSeconds` (default 120)
 without a search, dropping idle memory to a few tens of MB; the next search reloads them in about a second. Set `0` to keep everything loaded.
 
 ## Installing
@@ -208,8 +195,8 @@ executables that need no .NET installed:
 
 | Download | Contents |
 |---|---|
-| `minne-<version>-win-x64.zip` | `minne.exe` (CLI) and `minne-ui.exe` (desktop UI) |
-| `minne-<version>-linux-x64.tar.gz` | `minne` (CLI) |
+| `minne-<version>-win-x64.zip` | `minne.exe` |
+| `minne-<version>-linux-x64.tar.gz` | `minne` (desktop app — needs a graphical session, e.g. X11/Wayland) |
 
 Each archive has a `.sha256` published next to it. The binaries are not code-signed, so
 Windows SmartScreen will warn on first run.
@@ -222,11 +209,11 @@ native libraries inside their NuGet packages, and the tokenizer is pure managed 
 ```
 dotnet build
 dotnet test
-dotnet run --project src/MailSearch.Cli -- search hello
+dotnet run --project src/MailSearch.App
 
 # single-file executable (no .NET install needed on the target machine)
-dotnet publish src/MailSearch.Cli -c Release -r win-x64
-#   -> src/MailSearch.Cli/bin/Release/net10.0/win-x64/publish/minne.exe
+dotnet publish src/MailSearch.App -c Release -r win-x64
+#   -> src/MailSearch.App/bin/Release/net10.0/win-x64/publish/minne.exe
 ```
 
 Model integration test (downloads the default model): `MINNE_RUN_MODEL_TESTS=1 dotnet test`.
@@ -241,11 +228,10 @@ src/MailSearch.Core
   Embeddings/   IEmbeddingProvider, OnnxEmbeddingProvider, HttpEmbeddingProvider, tokenizer, downloader
   Storage/      SearchStore (SQLite: messages, FTS5, chunk vectors)
   Search/       QueryParser, HybridSearcher, RankFusion
-  Rerank/        IReranker, OnnxReranker (cross-encoder), RerankerFactory
+  Rerank/       IReranker, OnnxReranker (cross-encoder), RerankerFactory
   Eval/         EvalRunner
   Indexer.cs    sync → clean → chunk → embed orchestration
-src/MailSearch.App   desktop UI (Avalonia; minne-ui.exe)
-src/MailSearch.Cli   command-line front end (minne.exe)
+src/MailSearch.App   desktop app (Avalonia — native rendering, no web view; minne.exe)
 tests/               xunit tests; the search pipeline is tested end-to-end with a fake embedder
 ```
 
@@ -255,8 +241,9 @@ source stays branding-free so the name can change without a repo-wide rename.
 ## Privacy and security notes
 
 * Mail bodies (raw and cleaned) are stored in plain text in `mail.db` inside the data directory. Keep that directory out of synced folders.
-* The Graph refresh token is stored encrypted (DPAPI on Windows, keychain/keyring on macOS/Linux; plain file fallback on headless Linux).
+* The Graph refresh token is stored encrypted (DPAPI on Windows, keychain/keyring on macOS/Linux; plain file fallback when no secure store is available).
 * No telemetry, no network calls other than Graph and the one-time model download from huggingface.co (or none, with `modelDirectory`).
+* The default sign-in uses a shared public-client app registration; it contains no secret, but if you would rather control the app identity yourself, [register your own](#use-your-own-entra-app-registration-optional).
 
 The full threat model, and how to report a vulnerability privately, are in [SECURITY.md](SECURITY.md).
 
@@ -264,7 +251,7 @@ The full threat model, and how to report a vulnerability privately, are in [SECU
 
 * Vectors are scanned brute-force in memory on every search (~0.3 s for 100k chunks). Fine for mailboxes of that size; a persistent ANN index or quantization is on the [roadmap](docs/roadmap.md).
 * Attachments are not indexed, only the `has:attachment` flag.
-* Body cleaning is heuristic; check `search --json` snippets for quoted-reply leakage and extend `BodyCleaner` patterns.
+* Body cleaning is heuristic; check result snippets for quoted-reply leakage and extend `BodyCleaner` patterns.
 * Graph delta queries work per folder; `folders` must be listed explicitly.
 
 ## Contributing

@@ -368,7 +368,7 @@ public sealed class SearchStore : IDisposable
             messageIds[i] = reader.GetInt64(1);
             var read = reader.GetBytes(2, 0, bytes, 0, bytes.Length);
             if (read != bytes.Length)
-                throw new InvalidOperationException($"Chunk {chunkIds[i]} has an embedding of unexpected size; run 'embed --reset'.");
+                throw new InvalidOperationException($"Chunk {chunkIds[i]} has an embedding of unexpected size; use Tools → Re-embed everything.");
             MemoryMarshal.Cast<byte, float>(bytes).CopyTo(data.AsSpan(i * dimensions, dimensions));
             i++;
         }

@@ -47,7 +47,7 @@ Minne is the index and the search box.
 ## Decided by measurement
 
 The claim Minne has to keep earning is: local hybrid search finds emails that
-Outlook search misses. The `eval` command scores keyword, vector, hybrid and rerank
+Outlook search misses. The built-in eval harness (Tools → Evaluate search quality) scores keyword, vector, hybrid and rerank
 modes against a query set of real searches that were genuinely difficult, so every
 change that touches ranking — chunking, cleaning, fusion weights, models — is
 measured on that set rather than argued about.

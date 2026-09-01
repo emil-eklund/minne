@@ -17,6 +17,6 @@
     <RepositoryUrl>https://github.com/emil-eklund/minne</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <!-- overridden by the release workflow from the git tag -->
-    <Version Condition="'$(Version)' == ''">0.3.0</Version>
+    <Version Condition="'$(Version)' == ''">0.4.0</Version>
   </PropertyGroup>
 </Project>

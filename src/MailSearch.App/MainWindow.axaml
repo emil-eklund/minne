@@ -26,6 +26,30 @@
       <DockPanel>
         <Button DockPanel.Dock="Right" Content="Cancel" Click="OnCancelSyncClick"
                 IsVisible="{Binding IsSyncing}" Margin="8,0,0,0"/>
+        <DropDownButton DockPanel.Dock="Right" Content="Tools" Margin="8,0,0,0">
+          <DropDownButton.Flyout>
+            <MenuFlyout Placement="TopEdgeAlignedRight">
+              <MenuItem Header="Full resync" Click="OnFullResyncClick" IsEnabled="{Binding !IsSyncing}"
+                        ToolTip.Tip="Re-fetch every folder from scratch"/>
+              <MenuItem Header="Re-embed everything" Click="OnReembedClick" IsEnabled="{Binding !IsSyncing}"
+                        ToolTip.Tip="Drop all vectors and embed again — required after changing the embedding model"/>
+              <MenuItem Header="Rebuild index" Click="OnRebuildIndexClick" IsEnabled="{Binding !IsSyncing}"
+                        ToolTip.Tip="Re-clean and re-chunk from stored raw bodies (after changing indexing settings), then re-embed"/>
+              <Separator/>
+              <MenuItem Header="Evaluate search quality…" Click="OnEvalClick" IsEnabled="{Binding !IsSyncing}"
+                        ToolTip.Tip="Score keyword / vector / hybrid / rerank against a query set"/>
+              <MenuItem Header="Create example eval set…" Click="OnCreateEvalClick"/>
+              <Separator/>
+              <MenuItem Header="Open config file" Click="OnOpenConfigClick"
+                        ToolTip.Tip="Changes take effect after restarting the app"/>
+              <MenuItem Header="Copy config (redacted)" Click="OnCopyConfigClick"
+                        ToolTip.Tip="Copies config.json with the API key redacted — safe to paste into a bug report"/>
+              <MenuItem Header="Open data folder" Click="OnOpenDataFolderClick"/>
+              <Separator/>
+              <MenuItem Header="Sign out" Click="OnSignOutClick" IsEnabled="{Binding !IsSyncing}"/>
+            </MenuFlyout>
+          </DropDownButton.Flyout>
+        </DropDownButton>
         <Button DockPanel.Dock="Right" Content="Sync mailbox" Click="OnSyncClick"
                 IsEnabled="{Binding !IsSyncing}" Margin="12,0,0,0"/>
         <TextBlock DockPanel.Dock="Right" Text="{Binding StatsText}" Opacity="0.55"

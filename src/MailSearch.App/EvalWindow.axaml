@@ -1,0 +1,12 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MailSearch.App.EvalWindow"
+        Title="Search quality evaluation"
+        Icon="/Assets/icon-256.png"
+        Width="760" Height="620"
+        WindowStartupLocation="CenterOwner">
+  <ScrollViewer Padding="16">
+    <SelectableTextBlock Name="Report" FontFamily="Consolas,Menlo,monospace" FontSize="13"
+                         TextWrapping="NoWrap" Text="Running evaluation — progress is in the main window's status bar…"/>
+  </ScrollViewer>
+</Window>
