@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MailSearch.App.DeleteDataWindow"
+        Title="Delete local data"
+        Icon="/Assets/icon-256.png"
+        Width="560" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="20" Spacing="12">
+
+    <TextBlock Name="Intro" TextWrapping="Wrap"
+               Text="Delete the mail index and downloaded models from this computer?"/>
+
+    <Border Padding="12" CornerRadius="4" Background="#11808080">
+      <StackPanel Spacing="4">
+        <TextBlock Name="Usage" FontFamily="Consolas,Menlo,monospace" FontSize="12"/>
+        <SelectableTextBlock Name="Location" FontSize="12" Opacity="0.6" TextWrapping="Wrap"/>
+      </StackPanel>
+    </Border>
+
+    <TextBlock TextWrapping="Wrap" Opacity="0.75" FontSize="12"
+               Text="Your mail is not touched — everything here was fetched from Microsoft 365 and can be synced again. Signing in will be required afterwards, and the models download again on first use."/>
+
+    <TextBlock Name="Failures" TextWrapping="Wrap" FontSize="12" IsVisible="False" Foreground="#C05050"/>
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Name="KeepButton" Content="Keep" Click="OnKeepClick" IsCancel="True"/>
+      <Button Name="DeleteButton" Content="Delete" Click="OnDeleteClick"/>
+    </StackPanel>
+
+  </StackPanel>
+</Window>

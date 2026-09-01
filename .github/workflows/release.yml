@@ -81,10 +81,68 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.rid }}
+          name: release-${{ matrix.rid }}
           path: |
             ${{ steps.archive.outputs.asset }}
             ${{ steps.archive.outputs.asset }}.sha256
+          if-no-files-found: error
+
+      # The MSI adds what the zip cannot: a Start menu entry, an Add/Remove Programs entry, and an
+      # uninstall that offers to delete the mail index. Per-user, so it never asks for admin rights.
+      - name: Build the Windows installer
+        id: msi
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.value }}'
+          # MSI ProductVersion is numeric only, so a prerelease tag builds without its suffix.
+          $msiVersion = ($version -split '-')[0]
+          # Every build needs its own ProductCode; generating it here lets the winget manifest name it.
+          $productCode = '{' + [guid]::NewGuid().ToString().ToUpperInvariant() + '}'
+          $name = "Minne-$version-x64.msi"
+          dotnet tool install --global wix --version 6.*
+          wix build packaging/windows/Minne.wxs -arch x64 `
+            -d Version=$msiVersion `
+            -d ProductCode=$productCode `
+            -d PublishDir="$PWD/artifacts/win-x64" `
+            -o $name
+          $sha = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$sha  $name" | Set-Content "$name.sha256"
+          "asset=$name" >> $env:GITHUB_OUTPUT
+          "sha256=$sha" >> $env:GITHUB_OUTPUT
+          "productCode=$productCode" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v7
+        if: matrix.rid == 'win-x64'
+        with:
+          name: release-windows-installer
+          path: |
+            ${{ steps.msi.outputs.asset }}
+            ${{ steps.msi.outputs.asset }}.sha256
+          if-no-files-found: error
+
+      # Not submitted automatically: winget-pkgs takes a pull request, and the first one for a new
+      # package gets human review anyway. Download this artifact and follow packaging/README.md.
+      - name: Render winget manifests
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory winget-manifests | Out-Null
+          Get-ChildItem packaging/winget/*.yaml | ForEach-Object {
+            (Get-Content $_.FullName -Raw).
+              Replace('__VERSION__', '${{ steps.version.outputs.value }}').
+              Replace('__SHA256__', '${{ steps.msi.outputs.sha256 }}'.ToUpperInvariant()).
+              Replace('__PRODUCTCODE__', '${{ steps.msi.outputs.productCode }}').
+              Replace('__RELEASEDATE__', (Get-Date -Format 'yyyy-MM-dd')) |
+              Set-Content (Join-Path winget-manifests $_.Name)
+          }
+          Get-ChildItem winget-manifests | ForEach-Object { $_.Name }
+
+      - uses: actions/upload-artifact@v7
+        if: matrix.rid == 'win-x64'
+        with:
+          name: winget-manifests
+          path: winget-manifests/
           if-no-files-found: error
 
   release:
@@ -92,8 +150,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      # release-* only: the winget manifests are a build artifact, not a release download.
       - uses: actions/download-artifact@v8
         with:
+          pattern: release-*
           path: dist
           merge-multiple: true
 

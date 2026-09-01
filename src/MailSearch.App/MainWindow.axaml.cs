@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
@@ -72,6 +74,17 @@ public partial class MainWindow : Window
     private void OnSignOutClick(object? sender, RoutedEventArgs e)
     {
         if (Vm is { } vm) _ = vm.SignOutAsync();
+    }
+
+    private async void OnDeleteDataClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is not { } vm || vm.IsSyncing) return;
+        // The dialog disposes the view model to release the database file, so once it has tried to
+        // delete anything there is no index left to search and no connection to search it with.
+        var dialog = new DeleteDataWindow(vm.Paths, vm.Dispose, null);
+        await dialog.ShowDialog(this);
+        if (dialog.Attempted && Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            desktop.Shutdown();
     }
 
     private async void OnEvalClick(object? sender, RoutedEventArgs e)

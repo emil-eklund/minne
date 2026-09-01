@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+# Template — the release workflow substitutes the __PLACEHOLDERS__. See packaging/README.md.
+PackageIdentifier: EmilEklund.Minne
+PackageVersion: __VERSION__
+InstallerLocale: en-US
+InstallerType: wix
+# Per-user: installs to %LOCALAPPDATA%\Programs\Minne without a UAC prompt.
+Scope: user
+InstallModes:
+  - interactive
+  - silent
+  - silentWithProgress
+UpgradeBehavior: install
+ReleaseDate: __RELEASEDATE__
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/emil-eklund/minne/releases/download/v__VERSION__/Minne-__VERSION__-x64.msi
+    InstallerSha256: __SHA256__
+    ProductCode: '__PRODUCTCODE__'
+ManifestType: installer
+ManifestVersion: 1.6.0

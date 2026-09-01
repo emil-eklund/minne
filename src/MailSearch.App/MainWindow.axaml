@@ -47,6 +47,8 @@
               <MenuItem Header="Open data folder" Click="OnOpenDataFolderClick"/>
               <Separator/>
               <MenuItem Header="Sign out" Click="OnSignOutClick" IsEnabled="{Binding !IsSyncing}"/>
+              <MenuItem Header="Delete local data…" Click="OnDeleteDataClick" IsEnabled="{Binding !IsSyncing}"
+                        ToolTip.Tip="Frees the disk space: removes the index, the downloaded models and the saved sign-in, then closes the app"/>
             </MenuFlyout>
           </DropDownButton.Flyout>
         </DropDownButton>
