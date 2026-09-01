@@ -43,6 +43,29 @@ jobs:
 
       - run: dotnet test --configuration Release --no-build --verbosity normal
 
+  # A broken installer would otherwise only show up during a release. Building against a stub
+  # executable checks the WiX authoring in seconds instead of publishing 120 MB first.
+  installer:
+    name: installer authoring
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build the MSI from a stub payload
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 6.*
+          New-Item -ItemType Directory -Force artifacts/win-x64 | Out-Null
+          Set-Content artifacts/win-x64/minne.exe 'stub'
+          wix build packaging/windows/Minne.wxs -arch x64 `
+            -d Version=0.0.0 `
+            -d PublishDir="$PWD/artifacts/win-x64" `
+            -o "$env:RUNNER_TEMP/Minne.msi"
+
   # The ONNX model tests download ~900 MB, so they are opt-in: trigger this workflow
   # manually ("Run workflow") after changing anything in Embeddings/ or Rerank/.
   model-tests:

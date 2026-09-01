@@ -34,7 +34,15 @@ public sealed class SearchStore : IDisposable
     public SearchStore(string path)
     {
         _path = path;
-        _db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path, Mode = SqliteOpenMode.ReadWriteCreate }.ToString());
+        // Pooling off on purpose: there is one connection for the life of the process, so the pool
+        // buys nothing and a pooled connection keeps the file open after Dispose — which makes
+        // deleting the data directory (Tools -> Delete local data) fail on Windows.
+        _db = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = path,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Pooling = false,
+        }.ToString());
         _db.Open();
         Exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;");
         CreateSchema();

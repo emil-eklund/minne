@@ -28,7 +28,7 @@ Graph calls that fetch your own mail and a one-time model download from Hugging 
 
 ## Quick start
 
-1. Download `minne` from [releases](https://github.com/emil-eklund/minne/releases) and run it. No install, no configuration.
+1. `winget install EmilEklund.Minne`, or download `minne` from [releases](https://github.com/emil-eklund/minne/releases) and run it. No configuration either way.
 2. Press **Sync mailbox**. A browser window opens for Microsoft sign-in; grant read access to your mail.
 3. Wait while it downloads the embedding model (once), fetches your inbox, archive and
    sent items, and embeds them — a 20k-message mailbox takes ~10 minutes the first time.
@@ -163,6 +163,7 @@ whether re-ranking earns its latency is a measurement, not a guess.
 | Evaluate search quality… | Scores keyword / vector / hybrid / rerank against a query set (below) |
 | Create example eval set… | Writes a template query set to fill in |
 | Open config file / data folder | Edit `config.json` (restart to apply) or inspect `mail.db` and the models |
+| Delete local data | Frees the disk space: removes the index, the downloaded models and the saved sign-in, then closes the app |
 | Sign out | Forgets the signed-in account; the next sync asks again |
 
 ## Evaluating search quality
@@ -190,16 +191,29 @@ without a search, dropping idle memory to a few tens of MB; the next search relo
 
 ## Installing
 
-Grab a build from [releases](https://github.com/emil-eklund/minne/releases) — single-file
-executables that need no .NET installed:
+Single-file executables that need no .NET installed. Every asset has a `.sha256` published next
+to it.
 
-| Download | Contents |
-|---|---|
-| `minne-<version>-win-x64.zip` | `minne.exe` |
-| `minne-<version>-linux-x64.tar.gz` | `minne` (desktop app — needs a graphical session, e.g. X11/Wayland) |
+| | How | What it adds |
+|---|---|---|
+| **winget** (Windows) | `winget install EmilEklund.Minne` | Start menu entry, Add/Remove Programs, `winget upgrade` |
+| **Installer** (Windows) | `Minne-<version>-x64.msi` from [releases](https://github.com/emil-eklund/minne/releases) | the same, without winget |
+| **Portable** (Windows) | `minne-<version>-win-x64.zip` → `minne.exe` | nothing — run it from anywhere |
+| **Portable** (Linux) | `minne-<version>-linux-x64.tar.gz` → `minne` | nothing (needs a graphical session, X11/Wayland) |
 
-Each archive has a `.sha256` published next to it. The binaries are not code-signed, so
-Windows SmartScreen will warn on first run.
+The installer is **per-user**: it writes to `%LOCALAPPDATA%\Programs\Minne`, so there is no UAC
+prompt and no administrator involved. The portable zip remains the reference distribution for
+anyone who would rather nothing were installed at all.
+
+**SmartScreen.** The binaries are not code-signed, so a browser-downloaded `.exe` or `.msi`
+triggers "Windows protected your PC" (*More info → Run anyway*). `winget install` does not:
+it verifies the published SHA-256 itself instead of going through the browser download path that
+attaches the Mark-of-the-Web. Signing is the real fix and is not done yet — see
+[packaging/README.md](packaging/README.md).
+
+**Uninstalling.** Add/Remove Programs removes the app and then asks whether to delete the mail
+index too — it can be several gigabytes and is kept by default. `winget uninstall` never deletes
+it (use *Tools → Delete local data* first, or `msiexec /x {code} /qn REMOVEDATA=1`).
 
 ## Building
 
@@ -218,6 +232,9 @@ dotnet publish src/MailSearch.App -c Release -r win-x64
 
 Model integration test (downloads the default model): `MINNE_RUN_MODEL_TESTS=1 dotnet test`.
 
+The Windows installer and the winget manifests are built from that publish output — see
+[packaging/README.md](packaging/README.md).
+
 ## Layout
 
 ```
@@ -233,6 +250,7 @@ src/MailSearch.Core
   Indexer.cs    sync → clean → chunk → embed orchestration
 src/MailSearch.App   desktop app (Avalonia — native rendering, no web view; minne.exe)
 tests/               xunit tests; the search pipeline is tested end-to-end with a fake embedder
+packaging/           WiX authoring for the MSI and the winget manifest templates
 ```
 
 The product is *Minne*; the code is namespaced `MailSearch.*`. That is deliberate — the

@@ -1,6 +1,8 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using MailSearch.Config;
 
 namespace MailSearch.App;
 
@@ -13,13 +15,26 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var args = desktop.Args ?? [];
-            string? dataDir = null;
-            for (var i = 0; i + 1 < args.Length; i++)
-                if (args[i] == "--data-dir") dataDir = args[i + 1];
+            var dataDir = Program.DataDirArg(args);
 
-            var vm = new MainViewModel(dataDir);
-            desktop.MainWindow = new MainWindow { DataContext = vm };
-            desktop.Exit += (_, _) => vm.Dispose();
+            if (args.Contains("--purge-data"))
+            {
+                // Uninstall time: no index to open, just the question. Program.Main has already
+                // ruled out the cases that need no window. Topmost because it would otherwise hide
+                // behind the installer that started it — and the uninstall waits for an answer.
+                desktop.MainWindow = new DeleteDataWindow(new DataPaths(dataDir), null,
+                    "Minne has been uninstalled. Delete the mail index and downloaded models it left behind?")
+                {
+                    WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                    Topmost = true,
+                };
+            }
+            else
+            {
+                var vm = new MainViewModel(dataDir);
+                desktop.MainWindow = new MainWindow { DataContext = vm };
+                desktop.Exit += (_, _) => vm.Dispose();
+            }
         }
         base.OnFrameworkInitializationCompleted();
     }

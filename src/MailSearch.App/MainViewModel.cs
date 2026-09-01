@@ -202,6 +202,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public string ConfigFilePath => _paths.ConfigFile;
     public string DataDirectory => _paths.Root;
+    public DataPaths Paths => _paths;
 
     // ---- searching ----
 
@@ -536,8 +537,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void Post(string status) => Dispatcher.UIThread.Post(() => Status = status);
 
+    private bool _disposed;
+
+    /// <summary>Idempotent: deleting the local data disposes early, and the lifetime's Exit disposes again.</summary>
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         if (StatusLog.Sink == (Action<string>)Post) StatusLog.Sink = null; // don't root this instance from the static
         _idleTimer?.Stop();
         _syncCts?.Cancel();

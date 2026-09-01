@@ -18,16 +18,24 @@ and inline images would recover it.
 **Attachment indexing.** Today only the `has:attachment` flag is stored. PDF and
 Office document text is the obvious next body of content.
 
+**Code signing.** The binaries are unsigned, so Windows SmartScreen warns on anything
+downloaded through a browser. An EV or Azure Trusted Signing certificate is the only real
+fix; `winget install` sidesteps the prompt in the meantime.
+
 **MCP server.** Exposing the local index as [Model Context Protocol](https://modelcontextprotocol.io)
 resources would let an agent search your mail without any of it leaving the machine —
 which is exactly the property that makes a local index worth having.
 
-**Packaging.** The zipped single-file executables are deliberate — no installer to
-trust, nothing written outside the data directory. A `winget` manifest would make
-install and update one command without giving that up; an installer proper only if
-demand shows up.
-
 ## Design notes carried forward
+
+*Packaging.* The zipped single-file executables were deliberate — no installer to trust,
+nothing written outside the data directory. **Implemented** — `winget install
+EmilEklund.Minne`, backed by a per-user MSI, without giving that up: the zip is still the
+reference distribution, and the MSI only adds what a zip cannot have — a Start menu entry,
+an Add/Remove Programs entry, and an uninstall that offers to take the multi-gigabyte mail
+index with it. Still unsigned, so a browser-downloaded asset still meets SmartScreen;
+`winget install` avoids that prompt but is not a substitute for a certificate. See
+[packaging/README.md](../packaging/README.md).
 
 *Identifiers versus concepts.* Something shaped like `SAS13524` should lean on exact
 matching; a word like "travel" needs the embedding to find messages that are *about*

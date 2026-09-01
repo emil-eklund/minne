@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Per-user MSI for the Windows desktop app. Built by .github/workflows/release.yml:
+
+      wix build packaging/windows/Minne.wxs -arch x64 -d Version=0.4.0 -d PublishDir=artifacts/win-x64 -o Minne-0.4.0-x64.msi
+
+  Per-user on purpose: the app only ever writes to %LOCALAPPDATA%, so nothing here needs
+  administrator rights, and an install that never shows a UAC prompt is one less thing to trust.
+  What the installer adds over the portable zip is a Start menu entry, an Add/Remove Programs
+  entry, and an uninstall that offers to take the (multi-gigabyte) mail index with it.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <?ifndef Version?><?define Version = "0.0.0"?><?endif?>
+  <!-- A fresh ProductCode per build, passed in so the winget manifest can name the same one. -->
+  <?ifndef ProductCode?><?define ProductCode = "*"?><?endif?>
+  <?ifndef PublishDir?><?define PublishDir = "..\..\artifacts\win-x64"?><?endif?>
+  <?define RepoUrl = "https://github.com/emil-eklund/minne"?>
+
+  <Package Name="Minne"
+           Manufacturer="Emil Eklund"
+           Version="$(Version)"
+           ProductCode="$(ProductCode)"
+           UpgradeCode="0ee7c525-dc2a-4e94-b9cc-d807780187df"
+           Scope="perUser"
+           Compressed="yes"
+           Language="1033">
+
+    <SummaryInformation Description="Minne — local hybrid search for your Microsoft 365 mailbox" />
+
+    <!-- AllowSameVersionUpgrades so reinstalling the same version replaces it instead of erroring. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+
+    <!-- One large file; the extra compression time is cheaper than the download. -->
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="MinneIcon.ico" SourceFile="$(sys.SOURCEFILEDIR)..\..\assets\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="MinneIcon.ico" />
+    <Property Id="ARPHELPLINK" Value="$(RepoUrl)" />
+    <Property Id="ARPURLINFOABOUT" Value="$(RepoUrl)" />
+    <!-- Nothing to configure: the package is a single feature. -->
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <!-- msiexec /x {code} /qn REMOVEDATA=1  deletes the data directory without asking. -->
+    <Property Id="REMOVEDATA" Secure="yes" />
+
+    <!-- Add/Remove Programs leaves InstallLocation blank unless it is set explicitly. -->
+    <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" After="CostFinalize" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Minne" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="Minne" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Component Id="MinneExeComponent" Bitness="always64">
+        <File Id="MinneExe" Source="$(PublishDir)\minne.exe" KeyPath="yes" />
+      </Component>
+      <Component Id="LicenseComponent" Bitness="always64">
+        <File Id="LicenseFile" Name="LICENSE.txt" Source="$(sys.SOURCEFILEDIR)..\..\LICENSE" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder" Guid="6b1d7077-a248-49df-86a5-6e9f8cda679e">
+      <Shortcut Id="MinneShortcut"
+                Name="Minne"
+                Description="Local hybrid search for your Microsoft 365 mailbox"
+                Target="[#MinneExe]"
+                WorkingDirectory="INSTALLFOLDER" />
+      <!-- A per-user component needs an HKCU key path; it doubles as the uninstall cleanup marker. -->
+      <RegistryValue Root="HKCU" Key="Software\Minne" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+      <RemoveRegistryKey Root="HKCU" Key="Software\Minne" Action="removeOnUninstall" />
+    </Component>
+
+    <!--
+      The mail index lives in %LOCALAPPDATA%\Minne and is not owned by the installer — it can be
+      gigabytes, and MINNE_DATA may have moved it elsewhere. So the app is asked to delete it:
+      it resolves the same directory it reads, and shows the same dialog as Tools -> Delete local data.
+      Deferred and scheduled before RemoveFiles, while minne.exe is still on disk.
+    -->
+    <CustomAction Id="AskAboutData" FileRef="MinneExe" ExeCommand="--purge-data --ask"
+                  Execute="deferred" Impersonate="yes" Return="ignore" />
+    <CustomAction Id="PurgeData" FileRef="MinneExe" ExeCommand="--purge-data"
+                  Execute="deferred" Impersonate="yes" Return="ignore" />
+    <CustomAction Id="LaunchApp" FileRef="MinneExe" ExeCommand=""
+                  Execute="immediate" Impersonate="yes" Return="asyncNoWait" />
+
+    <InstallExecuteSequence>
+      <!--
+        UPGRADINGPRODUCTCODE excludes the uninstall half of a version upgrade: that must never
+        offer to throw the index away. UILevel >= 4 keeps a silent `winget uninstall` silent —
+        it leaves the data alone unless REMOVEDATA was passed explicitly.
+      -->
+      <Custom Action="AskAboutData" Before="RemoveFiles"
+              Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE AND NOT REMOVEDATA AND UILevel&gt;=4" />
+      <Custom Action="PurgeData" Before="RemoveFiles"
+              Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE AND REMOVEDATA=&quot;1&quot;" />
+      <!-- An attended install ends with the app open; `winget install` (UILevel 2) stays quiet. -->
+      <Custom Action="LaunchApp" After="InstallFinalize"
+              Condition="NOT Installed AND NOT REMOVE AND UILevel&gt;=4" />
+    </InstallExecuteSequence>
+
+  </Package>
+</Wix>
