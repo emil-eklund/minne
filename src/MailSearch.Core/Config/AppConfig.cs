@@ -39,8 +39,13 @@ public sealed class AppConfig
 
 public sealed class GraphConfig
 {
-    /// <summary>Application (client) id of your Entra app registration. Required.</summary>
-    public string ClientId { get; set; } = "";
+    /// <summary>
+    /// Application (client) id of the Entra app registration used for sign-in. The default is the
+    /// shared registration that ships with the app (public client, delegated Mail.Read + User.Read,
+    /// works for both organizational and personal accounts), so sign-in works with zero setup.
+    /// Replace it with your own registration's id to stay in full control of the app identity.
+    /// </summary>
+    public string ClientId { get; set; } = "4754f0c2-e9e1-4dfb-a821-4a404e1363f5";
     /// <summary>Tenant id, or "common" / "organizations" / "consumers".</summary>
     public string TenantId { get; set; } = "common";
     /// <summary>Well-known folder names (inbox, archive, sentitems, drafts, deleteditems) or folder ids.</summary>
@@ -80,7 +85,7 @@ public sealed class OnnxEmbeddingConfig
     /// <summary>
     /// Token budget per encoder pass. 128 is the default model's trained max_seq_length. Texts over
     /// the budget are embedded in windows of this size and the vectors averaged, so nothing is
-    /// dropped. Changing this changes the vectors: the next embed run will ask for 'embed --reset'.
+    /// dropped. Changing this changes the vectors: the next embed run will ask for a full re-embed.
     /// </summary>
     public int MaxTokens { get; set; } = 128;
     public PoolingMode Pooling { get; set; } = PoolingMode.Mean;

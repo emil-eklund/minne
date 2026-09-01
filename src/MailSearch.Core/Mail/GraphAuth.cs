@@ -24,8 +24,8 @@ public sealed class GraphAuth
         if (_app is not null) return _app;
         if (string.IsNullOrWhiteSpace(_config.ClientId))
             throw new InvalidOperationException(
-                "graph.clientId is not set. Register an app in Entra ID (public client, redirect http://localhost, " +
-                "delegated permissions User.Read + Mail.Read) and put its Application (client) ID in config.json.");
+                "graph.clientId is empty in config.json. Restore the default, or register your own app in Entra ID " +
+                "(public client, redirect http://localhost, delegated permissions User.Read + Mail.Read) and use its Application (client) ID.");
 
         var app = PublicClientApplicationBuilder.Create(_config.ClientId)
             .WithAuthority(AzureCloudInstance.AzurePublic, _config.TenantId)
@@ -68,7 +68,7 @@ public sealed class GraphAuth
             {
                 result = await app.AcquireTokenWithDeviceCode(Scopes, dc =>
                 {
-                    Console.WriteLine(dc.Message);
+                    StatusLog.Post(dc.Message);
                     return Task.CompletedTask;
                 }).ExecuteAsync(ct);
             }
@@ -78,7 +78,7 @@ public sealed class GraphAuth
                     .WithUseEmbeddedWebView(false)
                     .ExecuteAsync(ct);
             }
-            Console.WriteLine($"Signed in as {result.Account.Username}");
+            StatusLog.Post($"Signed in as {result.Account.Username}");
             return result.AccessToken;
         }
     }

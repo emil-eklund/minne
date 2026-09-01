@@ -72,7 +72,7 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IUnloadable
         var tokenizer = new SentencePieceTokenizerAdapter(tokenizerPath);
         var model = config.ModelDirectory is not null ? $"local:{Path.GetFileName(config.ModelDirectory)}/{config.ModelFile}" : $"{config.ModelRepo}/{config.ModelFile}";
         // The token budget shapes the vectors (window boundaries and context), so it is part of the
-        // identity: changing maxTokens trips the same embed --reset guard as swapping the model.
+        // identity: changing maxTokens trips the same re-embed guard as swapping the model.
         return new OnnxEmbeddingProvider(modelPath, tokenizer, config, $"{model}@{config.MaxTokens}");
     }
 

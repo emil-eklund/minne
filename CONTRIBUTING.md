@@ -21,8 +21,9 @@ dotnet build
 dotnet test
 ```
 
-To run against a real mailbox you need your own Entra app registration — see the
-README. Contributors are not expected to share one.
+Running against a real mailbox works out of the box: the app ships with a shared
+Entra app registration. You can also register your own and point `graph.clientId`
+at it — see the README.
 
 The two ONNX model tests are skipped by default because they download roughly
 900 MB. Opt in when you touch the embedding or reranking code:

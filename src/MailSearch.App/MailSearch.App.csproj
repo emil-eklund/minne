@@ -2,7 +2,8 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <RootNamespace>MailSearch.App</RootNamespace>
-    <AssemblyName>minne-ui</AssemblyName>
+    <!-- The single executable now that the CLI is gone. -->
+    <AssemblyName>minne</AssemblyName>
     <ApplicationIcon>..\..\assets\icon.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <RuntimeIdentifiers>win-x64;linux-x64;osx-arm64</RuntimeIdentifiers>

@@ -98,7 +98,7 @@ public sealed class Indexer
         var storedModel = _store.GetMeta("embedding_model");
         if (storedModel is not null && storedModel != provider.ModelId)
             throw new InvalidOperationException(
-                $"Index already contains embeddings from '{storedModel}'; configured model is '{provider.ModelId}'. Run 'embed --reset' to re-embed everything.");
+                $"Index already contains embeddings from '{storedModel}'; configured model is '{provider.ModelId}'. Use Tools → Re-embed everything to switch.");
         _store.SetMeta("embedding_model", provider.ModelId);
         _store.SetMeta("embedding_dims", provider.Dimensions.ToString());
 

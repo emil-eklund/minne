@@ -36,5 +36,5 @@ body:
     id: eval
     attributes:
       label: Eval numbers, if you have them
-      description: The table from `minne eval` helps enormously.
+      description: The table from Tools → Evaluate search quality helps enormously.
       render: text

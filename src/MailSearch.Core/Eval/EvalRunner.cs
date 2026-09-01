@@ -52,7 +52,8 @@ public sealed class EvalRunner
         _store = store;
     }
 
-    public async Task<List<ModeResult>> RunAsync(EvalSet set, IEnumerable<SearchMode> modes, int top, CancellationToken ct)
+    public async Task<List<ModeResult>> RunAsync(EvalSet set, IEnumerable<SearchMode> modes, int top, CancellationToken ct,
+        Action<SearchMode, int, int>? progress = null)
     {
         var results = new List<ModeResult>();
         foreach (var mode in modes)
@@ -60,6 +61,7 @@ public sealed class EvalRunner
             var perQuery = new List<QueryResult>();
             foreach (var c in set.Queries)
             {
+                progress?.Invoke(mode, perQuery.Count + 1, set.Queries.Count);
                 var expected = c.Expected.Select(_store.FindMessageRowId).Where(r => r is not null).Select(r => r!.Value).ToHashSet();
                 if (expected.Count == 0)
                 {

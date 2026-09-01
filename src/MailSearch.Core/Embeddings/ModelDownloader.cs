@@ -40,7 +40,7 @@ public static class ModelDownloader
         if (File.Exists(target)) return;
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         var url = $"https://huggingface.co/{repo}/resolve/main/{file}";
-        Console.Error.WriteLine($"Downloading {url}");
+        StatusLog.Post($"Downloading {repo}/{file}…");
 
         using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!response.IsSuccessStatusCode)
@@ -60,12 +60,11 @@ public static class ModelDownloader
                 done += read;
                 if (total is > 0 && DateTime.UtcNow - lastReport > TimeSpan.FromSeconds(1))
                 {
-                    Console.Error.Write($"\r  {done / 1048576.0:0} / {total / 1048576.0:0} MB");
+                    StatusLog.Post($"Downloading {repo}/{file} — {done / 1048576.0:0} / {total / 1048576.0:0} MB");
                     lastReport = DateTime.UtcNow;
                 }
             }
         }
-        if (total is > 0) Console.Error.WriteLine();
         File.Move(temp, target, overwrite: true);
     }
 }

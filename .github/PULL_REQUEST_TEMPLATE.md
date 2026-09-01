@@ -9,7 +9,7 @@
 ## If this touches ranking
 
 Chunking, body cleaning, fusion weights, models or rerank depth all move retrieval
-quality. Paste before/after `minne eval` numbers on the same query set — otherwise
+quality. Paste before/after eval numbers (Tools → Evaluate search quality) on the same query set — otherwise
 there is no way to tell an improvement from a regression.
 
 ```
