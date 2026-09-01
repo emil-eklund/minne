@@ -73,14 +73,15 @@ Any other model can be plugged in without code changes:
 
 | Option | config.json |
 |---|---|
-| Another Hugging Face ONNX model (needs `tokenizer.json`) | `embedding.onnx.modelRepo`, `modelFile`, `tokenizerFile`, optionally `queryPrefix`/`documentPrefix` (e.g. `"query: "`/`"passage: "` for e5) |
+| Another Hugging Face XLM-R model (needs `sentencepiece.bpe.model`) | `embedding.onnx.modelRepo`, `modelFile`, `tokenizerFile`, optionally `queryPrefix`/`documentPrefix` (e.g. `"query: "`/`"passage: "` for e5) |
 | Offline local folder | `embedding.onnx.modelDirectory` pointing at a folder with the model + tokenizer |
 | Ollama / LM Studio / any OpenAI-compatible server | `embedding.provider: "http"`, `embedding.http.endpoint`, `model` |
 
 Changing model after indexing requires `minne embed --reset`; the index refuses to mix models.
 
-Alternatives worth trying with the eval harness: `intfloat/multilingual-e5-small` (stronger, needs prefixes),
-`jinaai/jina-embeddings-v2-base-de` (German/English), `KBLab/sentence-bert-swedish-cased` (Swedish only).
+Alternatives worth trying with the eval harness: `intfloat/multilingual-e5-small` (stronger, needs prefixes).
+The local ONNX path reads SentencePiece models, so it takes XLM-R-family repos only; WordPiece models
+(`jinaai/jina-embeddings-v2-base-de`, `KBLab/sentence-bert-swedish-cased`) need the HTTP provider instead.
 
 ### Reranker (search mode `rerank`)
 
@@ -89,7 +90,7 @@ re-scores the top fused candidates with a cross-encoder that reads query and pas
 [`cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`](https://huggingface.co/cross-encoder/mmarco-mMiniLMv2-L12-H384-v1)
 — the multilingual mMARCO reranker from the same sentence-transformers family as the default embedding
 model (~450 MB ONNX, CPU, downloaded on first use). Expect a few hundred extra ms per search for
-`rerank.depth` = 50 candidates. Any other ONNX cross-encoder can be plugged in via `rerank.onnx.modelRepo`
+`rerank.depth` = 50 candidates. Any other XLM-R ONNX cross-encoder can be plugged in via `rerank.onnx.modelRepo`
 or `modelDirectory`, exactly like the embedding model. `eval` includes the rerank mode automatically, so
 whether re-ranking earns its latency is a measurement, not a guess.
 
@@ -215,8 +216,8 @@ Windows SmartScreen will warn on first run.
 
 ## Building
 
-Requires the .NET 10 SDK. No other runtime or tool is needed; SQLite, ONNX Runtime and the tokenizer
-ship as native libraries inside the NuGet packages.
+Requires the .NET 10 SDK. No other runtime or tool is needed; SQLite and ONNX Runtime ship as
+native libraries inside their NuGet packages, and the tokenizer is pure managed code.
 
 ```
 dotnet build

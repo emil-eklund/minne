@@ -66,17 +66,19 @@ public enum PoolingMode { Mean, Cls }
 /// <summary>
 /// Local ONNX sentence-transformer. The default is an EU-developed multilingual model
 /// (UKP Lab, TU Darmstadt) covering 50+ languages including all major European ones.
-/// Any Hugging Face repo exposing an ONNX export plus tokenizer.json can be used instead,
-/// or point <see cref="ModelDirectory"/> at a local folder for fully offline use.
+/// Any Hugging Face repo from the XLM-R family exposing an ONNX export plus a SentencePiece
+/// model can be used instead, or point <see cref="ModelDirectory"/> at a local folder for
+/// fully offline use.
 /// </summary>
 public sealed class OnnxEmbeddingConfig
 {
     public string ModelRepo { get; set; } = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2";
     public string ModelFile { get; set; } = "onnx/model.onnx";
-    public string TokenizerFile { get; set; } = "tokenizer.json";
+    public string TokenizerFile { get; set; } = "sentencepiece.bpe.model";
     /// <summary>Optional local directory containing the model and tokenizer files. Overrides downloading.</summary>
     public string? ModelDirectory { get; set; }
-    public int MaxTokens { get; set; } = 256;
+    /// <summary>Token budget per text. 128 is the default model's max_seq_length, which its tokenizer.json used to clamp to on its own.</summary>
+    public int MaxTokens { get; set; } = 128;
     public PoolingMode Pooling { get; set; } = PoolingMode.Mean;
     public bool Normalize { get; set; } = true;
     public int BatchSize { get; set; } = 16;
@@ -132,13 +134,13 @@ public sealed class RerankConfig
 /// <summary>
 /// Local ONNX cross-encoder. The default is the multilingual mMARCO MiniLM reranker (same model family
 /// and language coverage as the default embedding model, ~450 MB, downloaded on first use). Any Hugging Face
-/// cross-encoder with an ONNX export plus tokenizer.json can be used instead, or a local folder.
+/// XLM-R cross-encoder with an ONNX export plus a SentencePiece model can be used instead, or a local folder.
 /// </summary>
 public sealed class OnnxRerankConfig
 {
     public string ModelRepo { get; set; } = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1";
     public string ModelFile { get; set; } = "onnx/model.onnx";
-    public string TokenizerFile { get; set; } = "tokenizer.json";
+    public string TokenizerFile { get; set; } = "sentencepiece.bpe.model";
     /// <summary>Optional local directory containing the model and tokenizer files. Overrides downloading.</summary>
     public string? ModelDirectory { get; set; }
     /// <summary>Token budget for query + passage together.</summary>

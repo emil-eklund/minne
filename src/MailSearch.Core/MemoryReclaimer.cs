@@ -7,10 +7,9 @@ namespace MailSearch;
 public static class MemoryReclaimer
 {
     /// <summary>
-    /// Full compacting GC, then (on Windows) a working-set trim. The trim matters because the native
-    /// tokenizer keeps ~300 MB committed that it never touches again after loading; trimming drops
-    /// those pages from the working set (the number Task Manager shows) and later use only faults
-    /// back the ~10 MB it actually reads.
+    /// Full compacting GC, then (on Windows) a working-set trim. The trim matters because unloading a
+    /// model returns its pages to the process, not to the OS; trimming drops them from the working set
+    /// (the number Task Manager shows) and the next search only faults back what it reads.
     /// </summary>
     public static void Reclaim()
     {

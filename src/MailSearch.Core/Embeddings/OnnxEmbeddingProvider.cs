@@ -54,9 +54,8 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IUnloadable
 
     /// <summary>
     /// Frees the native session (weights + arena) while idle; the next embed recreates it from disk.
-    /// The tokenizer stays loaded on purpose: its native allocator never returns memory to the OS,
-    /// so cycling it only grows the process, while its idle pages cost nothing once the working set
-    /// is trimmed (see <see cref="MemoryReclaimer"/>).
+    /// The tokenizer stays loaded on purpose: the SentencePiece model is only a few MB of managed
+    /// memory, so reloading it from disk on every search would cost more than keeping it.
     /// </summary>
     public void Unload()
     {
@@ -70,7 +69,7 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IUnloadable
     public static async Task<OnnxEmbeddingProvider> CreateAsync(OnnxEmbeddingConfig config, DataPaths paths, CancellationToken ct)
     {
         var (modelPath, tokenizerPath) = await ModelDownloader.EnsureAsync(config, paths, ct);
-        var tokenizer = new HuggingFaceTokenizer(tokenizerPath);
+        var tokenizer = new SentencePieceTokenizerAdapter(tokenizerPath);
         var modelId = config.ModelDirectory is not null ? $"local:{Path.GetFileName(config.ModelDirectory)}/{config.ModelFile}" : $"{config.ModelRepo}/{config.ModelFile}";
         return new OnnxEmbeddingProvider(modelPath, tokenizer, config, modelId);
     }
