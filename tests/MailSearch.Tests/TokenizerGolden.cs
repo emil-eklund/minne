@@ -24,7 +24,7 @@ internal sealed record TokenizerGolden(IReadOnlyList<TokenizerGoldenModel> Model
 }
 
 /// <param name="ModelRepo">Hugging Face repo the ids came from.</param>
-/// <param name="MaxTokens">Sequence cap the repo's tokenizer.json applied, which the encoders' MaxTokens now carries. 0 = uncapped.</param>
+/// <param name="MaxTokens">Sequence cap the repo's tokenizer.json applied when the golden ids were captured (the encoders now window instead of truncating). 0 = uncapped.</param>
 internal sealed record TokenizerGoldenModel(string ModelRepo, int MaxTokens, int PadTokenId, bool DoublePairSeparator, IReadOnlyList<TokenizerGoldenCase> Cases);
 
 /// <summary>Ids are stored space-separated: one line per case keeps the fixture readable in a diff.</summary>

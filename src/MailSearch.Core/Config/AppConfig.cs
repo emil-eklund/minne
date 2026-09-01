@@ -77,7 +77,11 @@ public sealed class OnnxEmbeddingConfig
     public string TokenizerFile { get; set; } = "sentencepiece.bpe.model";
     /// <summary>Optional local directory containing the model and tokenizer files. Overrides downloading.</summary>
     public string? ModelDirectory { get; set; }
-    /// <summary>Token budget per text. 128 is the default model's max_seq_length, which its tokenizer.json used to clamp to on its own.</summary>
+    /// <summary>
+    /// Token budget per encoder pass. 128 is the default model's trained max_seq_length. Texts over
+    /// the budget are embedded in windows of this size and the vectors averaged, so nothing is
+    /// dropped. Changing this changes the vectors: the next embed run will ask for 'embed --reset'.
+    /// </summary>
     public int MaxTokens { get; set; } = 128;
     public PoolingMode Pooling { get; set; } = PoolingMode.Mean;
     public bool Normalize { get; set; } = true;
