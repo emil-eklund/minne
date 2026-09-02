@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
 # Template — the release workflow substitutes the __PLACEHOLDERS__. See packaging/README.md.
 PackageIdentifier: EmilEklund.Minne
 PackageVersion: __VERSION__
@@ -18,4 +18,4 @@ Installers:
     InstallerSha256: __SHA256__
     ProductCode: '__PRODUCTCODE__'
 ManifestType: installer
-ManifestVersion: 1.6.0
+ManifestVersion: 1.12.0

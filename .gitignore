@@ -16,3 +16,6 @@ app-registration.json
 
 # scratch output from regenerating brand rasters
 assets/generated/
+
+# wingetcreate drops a winget-pkgs folder layout here; the templates live in packaging/winget
+manifests/
