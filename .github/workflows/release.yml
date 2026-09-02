@@ -129,12 +129,18 @@ jobs:
         run: |
           New-Item -ItemType Directory winget-manifests | Out-Null
           Get-ChildItem packaging/winget/*.yaml | ForEach-Object {
+            $dest = Join-Path winget-manifests $_.Name
+            # The "# Template" note explains the placeholders to readers of this repo; once they
+            # are substituted it means nothing, so it does not travel to winget-pkgs.
             (Get-Content $_.FullName -Raw).
               Replace('__VERSION__', '${{ steps.version.outputs.value }}').
               Replace('__SHA256__', '${{ steps.msi.outputs.sha256 }}'.ToUpperInvariant()).
               Replace('__PRODUCTCODE__', '${{ steps.msi.outputs.productCode }}').
-              Replace('__RELEASEDATE__', (Get-Date -Format 'yyyy-MM-dd')) |
-              Set-Content (Join-Path winget-manifests $_.Name)
+              Replace('__RELEASEDATE__', (Get-Date -Format 'yyyy-MM-dd')) -split '\r?\n' |
+              Where-Object { $_ -notmatch '^# Template' } |
+              # utf8BOM is what winget-pkgs' own YamlCreate.ps1 writes, and its encoding check
+              # wants a BOM on any manifest carrying non-ASCII characters (the description's dashes).
+              Set-Content $dest -Encoding utf8BOM
           }
           Get-ChildItem winget-manifests | ForEach-Object { $_.Name }
 

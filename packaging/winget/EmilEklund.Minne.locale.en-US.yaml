@@ -1,9 +1,10 @@
-# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
 # Template — the release workflow substitutes the __PLACEHOLDERS__. See packaging/README.md.
 PackageIdentifier: EmilEklund.Minne
 PackageVersion: __VERSION__
 PackageLocale: en-US
 Publisher: Emil Eklund
+Author: Emil Eklund
 PublisherUrl: https://github.com/emil-eklund
 PublisherSupportUrl: https://github.com/emil-eklund/minne/issues
 PackageName: Minne
@@ -30,4 +31,4 @@ Tags:
   - privacy
 ReleaseNotesUrl: https://github.com/emil-eklund/minne/releases/tag/v__VERSION__
 ManifestType: defaultLocale
-ManifestVersion: 1.6.0
+ManifestVersion: 1.12.0
