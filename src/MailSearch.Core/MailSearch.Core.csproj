@@ -6,7 +6,7 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
     <PackageReference Include="Microsoft.Identity.Client" Version="4.88.0" />
     <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="4.88.0" />
-    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.29.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.30.0" />
     <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
     <PackageReference Include="System.Numerics.Tensors" Version="10.0.11" />
   </ItemGroup>
